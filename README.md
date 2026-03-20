@@ -1,20 +1,10 @@
-# 
+# Godot Sequencer Tool
 
-# \#Godot Sequencer Tool
+A standalone Godot editor plugin project for building a reusable sequencer tool.
 
-# 
+**Work in Progress:** This plugin is currently in early development and is not yet feature-complete.
 
-# A standalone Godot editor plugin project for building a reusable sequencer tool.
+## Structure
 
-# 
-
-# \#Structure
-
-# 
-
-# \- addons/sequencer\_tool/ — the actual plugin
-
-# \- project root — standalone Godot workspace for developing and testing the plugin
-
-
-
+- `addons/sequencer_tool/` — the actual plugin
+- project root — standalone Godot workspace for developing and testing the plugin
