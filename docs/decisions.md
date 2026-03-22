@@ -35,3 +35,19 @@ The timeline should therefore support:
 ### Consequences
 
 The fake clip system using dictionaries created on 2026-03-20 should be updated to allow clips that are not the exact length of musical intervals.
+
+## 2026-03-20 — Centralize clip rectangle creation in a helper function
+
+### Decision
+
+Clip rectangle creation should be centralized in a helper function.
+
+### Reasoning
+
+Creating a helper function for centralizing clip rectangle creation to simplify future features such as:
+- selection
+- hover
+- dragging
+- resizing
+
+All systems that depend on clip geometry will use the same calculation source

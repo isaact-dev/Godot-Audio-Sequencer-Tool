@@ -65,11 +65,23 @@ func set_track_count(value: int) -> void:
 	_update_timeline_size()
 	queue_redraw()
 
-func _subdivision_to_x(subdivision: int) -> float:
-	return subdivision * pixels_per_subdivision
+func _timeline_to_x(position: float) -> float:
+	return position * pixels_per_subdivision
 
 func _track_to_y(track_index: int) -> float:
 	return header_height + (track_index * lane_height)
+
+func _get_clip_rect(clip: Dictionary) -> Rect2:
+	var track_index: int = clip["track"]
+	var start: float = clip["start"]
+	var length: float = clip["length"]
+
+	var x := _timeline_to_x(start) + clip_horizontal_padding
+	var y := _track_to_y(track_index) + clip_vertical_padding
+	var width := (length * pixels_per_subdivision) - (clip_horizontal_padding * 2.0)
+	var height := lane_height - (clip_vertical_padding * 2.0)
+
+	return Rect2(x, y, width, height)
 
 func _create_demo_clips() -> void:
 	if not fake_clips.is_empty():
@@ -78,43 +90,43 @@ func _create_demo_clips() -> void:
 	fake_clips = [
 		{
 			"track": 0,
-			"start_subdivision": 0,
-			"length_subdivisions": 8,
+			"start": 16.0,
+			"length": 12.5,
 			"name": "Kick Loop",
 			"color": Color(0.30, 0.55, 0.85)
 		},
 		{
 			"track": 0,
-			"start_subdivision": 16,
-			"length_subdivisions": 12,
+			"start": 16.5,
+			"length": 15.2,
 			"name": "Kick Fill",
 			"color": Color(0.25, 0.50, 0.80)
 		},
 		{
 			"track": 1,
-			"start_subdivision": 4,
-			"length_subdivisions": 6,
+			"start": 4.3,
+			"length": 6.2,
 			"name": "Snare",
 			"color": Color(0.80, 0.45, 0.30)
 		},
 		{
 			"track": 1,
-			"start_subdivision": 24,
-			"length_subdivisions": 8,
+			"start": 24.0,
+			"length": 8.2,
 			"name": "Snare Alt",
 			"color": Color(0.78, 0.40, 0.28)
 		},
 		{
 			"track": 2,
-			"start_subdivision": 8,
-			"length_subdivisions": 16,
+			"start": 8.1,
+			"length": 16.2,
 			"name": "Bass Phrase",
 			"color": Color(0.35, 0.75, 0.45)
 		},
 		{
 			"track": 3,
-			"start_subdivision": 32,
-			"length_subdivisions": 20,
+			"start": 32.9,
+			"length": 20.5,
 			"name": "Melody",
 			"color": Color(0.70, 0.40, 0.85)
 		}
@@ -197,41 +209,41 @@ func _draw_bar_numbers() -> void:
 			bar_number_color
 		)
 
+
+
 func _draw_fake_clips() -> void:
 	var font := get_theme_default_font()
 	var font_size := get_theme_default_font_size()
 
 	for clip in fake_clips:
-		if not clip.has("track") or not clip.has("start_subdivision") or not clip.has("length_subdivisions"):
+		if not clip.has("track") or not clip.has("start") or not clip.has("length"):
 			continue
 
 		var track_index: int = clip["track"]
-		var start_subdivision: int = clip["start_subdivision"]
-		var length_subdivisions: int = clip["length_subdivisions"]
+		var length: float = clip["length"]
 
 		if track_index < 0 or track_index >= track_count:
 			continue
 
-		if length_subdivisions <= 0:
+		if length <= 0.0:
 			continue
 
-		var x := _subdivision_to_x(start_subdivision) + clip_horizontal_padding
-		var y := _track_to_y(track_index) + clip_vertical_padding
-		var width := (length_subdivisions * pixels_per_subdivision) - (clip_horizontal_padding * 2.0)
-		var height := lane_height - (clip_vertical_padding * 2.0)
+		var rect := _get_clip_rect(clip)
 
-		if width <= 1.0 or height <= 1.0:
+		if rect.size.x <= 1.0 or rect.size.y <= 1.0:
 			continue
 
 		var color: Color = clip.get("color", Color(0.35, 0.55, 0.85))
-		var rect := Rect2(x, y, width, height)
 
 		draw_rect(rect, color, true)
 		draw_rect(rect, clip_outline_color, false, 1.0)
 
 		if clip.has("name"):
 			var clip_name: String = str(clip["name"])
-			var text_position := Vector2(rect.position.x + 6.0, rect.position.y + (height * 0.62))
+			var text_position := Vector2(
+				rect.position.x + 6.0,
+				rect.position.y + (rect.size.y * 0.62)
+			)
 
 			draw_string(
 				font,
