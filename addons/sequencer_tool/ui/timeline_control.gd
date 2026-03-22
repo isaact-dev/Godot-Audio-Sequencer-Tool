@@ -9,7 +9,6 @@ class_name TimelineControl
 @export var lane_height: float = 48.0
 @export var pixels_per_subdivision: float = 24.0
 @export var header_height: float = 32.0
-
 @export var clip_vertical_padding: float = 6.0
 @export var clip_horizontal_padding: float = 2.0
 
@@ -29,6 +28,10 @@ var clip_text_color := Color(1.0, 1.0, 1.0)
 var clip_outline_color := Color(0.0, 0.0, 0.0, 0.45)
 
 var fake_clips: Array[Dictionary] = []
+
+var selected_clip_index: int = -1
+var selected_clip_outline_color := Color(1.0, 0.9, 0.35, 1.0)
+var selected_clip_overlay_color := Color(1.0, 1.0, 1.0, 0.08)
 
 func _ready() -> void:
 	_create_demo_clips()
@@ -82,6 +85,40 @@ func _get_clip_rect(clip: Dictionary) -> Rect2:
 	var height := lane_height - (clip_vertical_padding * 2.0)
 
 	return Rect2(x, y, width, height)
+
+func _get_clip_index_at_position(position: Vector2) -> int:
+	for i in range(fake_clips.size() - 1, -1, -1):
+		var clip := fake_clips[i]
+
+		if not clip.has("track") or not clip.has("start") or not clip.has("length"):
+			continue
+
+		var track_index: int = clip["track"]
+		var length: float = clip["length"]
+
+		if track_index < 0 or track_index >= track_count:
+			continue
+
+		if length <= 0.0:
+			continue
+
+		var rect := _get_clip_rect(clip)
+
+		if rect.size.x <= 1.0 or rect.size.y <= 1.0:
+			continue
+
+		if rect.has_point(position):
+			return i
+
+	return -1
+
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		var mouse_button_event := event as InputEventMouseButton
+
+		if mouse_button_event.button_index == MOUSE_BUTTON_LEFT and mouse_button_event.pressed:
+			selected_clip_index = _get_clip_index_at_position(mouse_button_event.position)
+			queue_redraw()
 
 func _create_demo_clips() -> void:
 	if not fake_clips.is_empty():
@@ -215,7 +252,9 @@ func _draw_fake_clips() -> void:
 	var font := get_theme_default_font()
 	var font_size := get_theme_default_font_size()
 
-	for clip in fake_clips:
+	for i in range(fake_clips.size()):
+		var clip := fake_clips[i]
+
 		if not clip.has("track") or not clip.has("start") or not clip.has("length"):
 			continue
 
@@ -236,7 +275,12 @@ func _draw_fake_clips() -> void:
 		var color: Color = clip.get("color", Color(0.35, 0.55, 0.85))
 
 		draw_rect(rect, color, true)
-		draw_rect(rect, clip_outline_color, false, 1.0)
+
+		if i == selected_clip_index:
+			draw_rect(rect, selected_clip_overlay_color, true)
+			draw_rect(rect, selected_clip_outline_color, false, 2.0)
+		else:
+			draw_rect(rect, clip_outline_color, false, 1.0)
 
 		if clip.has("name"):
 			var clip_name: String = str(clip["name"])

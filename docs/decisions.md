@@ -51,3 +51,14 @@ Creating a helper function for centralizing clip rectangle creation to simplify 
 - resizing
 
 All systems that depend on clip geometry will use the same calculation source
+
+## 2026-03-20 — Clicking clips should prioritize selecting the top clip
+
+### Decision
+
+When detecting which clip was clicked, the clip array should be checked in reverse order so that the clip drawn last is prioritized.
+
+### Reasoning
+
+This matches the visual layers of the timeline. The clip that appears on top should be the one that gets selected.
+Even if overlapping clips are not intended in the final version, this rule provides behavior for temporary overlaps, test data, or future edge cases.
