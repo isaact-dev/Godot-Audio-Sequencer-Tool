@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://cs4hnb00v7txr"]
 
 [ext_resource type="Script" uid="uid://bh2w3mks0wd7x" path="res://addons/sequencer_tool/ui/sequencer_dock.gd" id="1_o187q"]
+[ext_resource type="Script" uid="uid://byuox4fv4dpo2" path="res://addons/sequencer_tool/ui/timeline_control.gd" id="2_pn50h"]
 
 [node name="sequencer_dock" type="VBoxContainer" unique_id=1044257266]
 anchors_preset = 15
@@ -120,8 +121,16 @@ text = "Timeline"
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="WIP" type="Label" parent="HSplitContainer/TimelineBox/TimelinePanel" unique_id=652594378]
+[node name="ScrollContainer" type="ScrollContainer" parent="HSplitContainer/TimelineBox/TimelinePanel" unique_id=1494620337]
 layout_mode = 2
+
+[node name="TimelineControl" type="Control" parent="HSplitContainer/TimelineBox/TimelinePanel/ScrollContainer" unique_id=890179304]
+custom_minimum_size = Vector2(1200, 300)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("2_pn50h")
+header_height = null
 
 [connection signal="pressed" from="HBoxContainer/ButtonNew" to="." method="_on_button_new_pressed"]
 [connection signal="pressed" from="HBoxContainer/ButtonOpen" to="." method="_on_button_open_pressed"]
