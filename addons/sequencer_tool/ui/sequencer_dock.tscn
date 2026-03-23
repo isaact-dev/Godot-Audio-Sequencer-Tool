@@ -137,3 +137,4 @@ track_count = 5
 [connection signal="pressed" from="HBoxContainer/ButtonSave" to="." method="_on_button_save_pressed"]
 [connection signal="pressed" from="HBoxContainer/ButtonPlay" to="." method="_on_button_play_pressed"]
 [connection signal="pressed" from="HBoxContainer/ButtonPause" to="." method="_on_button_pause_pressed"]
+[connection signal="mouse_exited" from="HSplitContainer/TimelineBox/TimelinePanel" to="HSplitContainer/TimelineBox/TimelinePanel/ScrollContainer/TimelineControl" method="_on_timeline_panel_mouse_exited"]

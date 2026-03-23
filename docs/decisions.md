@@ -62,3 +62,11 @@ When detecting which clip was clicked, the clip array should be checked in rever
 
 This matches the visual layers of the timeline. The clip that appears on top should be the one that gets selected.
 Even if overlapping clips are not intended in the final version, this rule provides behavior for temporary overlaps, test data, or future edge cases.
+
+
+## 2026-04-20 — Hover state should be tracked separately from selection state
+
+### Decision
+
+Hover state should be tracked separately from selection state so the timeline can distinguish between the currently selected clip and the clip currently under the cursor.
+This way a clip can be selected whilst another is hovered over.

@@ -30,10 +30,16 @@ var clip_outline_color := Color(0.0, 0.0, 0.0, 0.45)
 var fake_clips: Array[Dictionary] = []
 
 var selected_clip_index: int = -1
+var hovered_clip_index: int = -1
+
 var selected_clip_outline_color := Color(1.0, 0.9, 0.35, 1.0)
 var selected_clip_overlay_color := Color(1.0, 1.0, 1.0, 0.08)
+var hovered_clip_outline_color := Color(1.0, 1.0, 1.0, 0.38)
+var hovered_clip_overlay_color := Color(1.0, 1.0, 1.0, 0.05)
+
 
 func _ready() -> void:
+	mouse_filter = Control.MOUSE_FILTER_STOP
 	_create_demo_clips()
 	_update_timeline_size()
 	queue_redraw()
@@ -113,6 +119,11 @@ func _get_clip_index_at_position(position: Vector2) -> int:
 	return -1
 
 func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		var mouse_motion_event := event as InputEventMouseMotion
+		_update_hovered_clip(mouse_motion_event.position)
+		return
+
 	if event is InputEventMouseButton:
 		var mouse_button_event := event as InputEventMouseButton
 
@@ -279,6 +290,9 @@ func _draw_fake_clips() -> void:
 		if i == selected_clip_index:
 			draw_rect(rect, selected_clip_overlay_color, true)
 			draw_rect(rect, selected_clip_outline_color, false, 2.0)
+		elif i == hovered_clip_index:
+			draw_rect(rect, hovered_clip_overlay_color, true)
+			draw_rect(rect, hovered_clip_outline_color, false, 2.0)
 		else:
 			draw_rect(rect, clip_outline_color, false, 1.0)
 
@@ -298,3 +312,23 @@ func _draw_fake_clips() -> void:
 				font_size,
 				clip_text_color
 			)
+func _update_hovered_clip(position: Vector2) -> void:
+	var new_hovered_clip_index := _get_clip_index_at_position(position)
+
+	if new_hovered_clip_index == hovered_clip_index:
+		return
+
+	hovered_clip_index = new_hovered_clip_index
+
+	if hovered_clip_index == -1:
+		mouse_default_cursor_shape = Control.CURSOR_ARROW
+	else:
+		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+
+	queue_redraw()
+
+func _on_timeline_panel_mouse_exited():
+	if hovered_clip_index != -1:
+		hovered_clip_index = -1
+		mouse_default_cursor_shape = Control.CURSOR_ARROW
+		queue_redraw()
