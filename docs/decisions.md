@@ -70,3 +70,18 @@ Even if overlapping clips are not intended in the final version, this rule provi
 
 Hover state should be tracked separately from selection state so the timeline can distinguish between the currently selected clip and the clip currently under the cursor.
 This way a clip can be selected whilst another is hovered over.
+
+## 2026-04-20 — Clip dragging should preserve the mouse’s relative grab offset inside the clip
+
+### Decision
+
+Clip dragging should preserve the mouse’s relative grab offset inside the clip so the clip does not jump when dragging begins.
+This is done by adding drag state variables.
+
+## 2026-04-20 — Initially focus on horizontal dragging
+
+### Decision
+
+By focusing on horizontal dragging first, a lot of complications are avoided. 
+It is important that the snapping and micro-adjustments in the horizontal direction are as user friendly as possible.
+Track switching will be implemented later.

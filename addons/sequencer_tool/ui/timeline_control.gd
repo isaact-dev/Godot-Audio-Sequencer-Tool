@@ -11,6 +11,7 @@ class_name TimelineControl
 @export var header_height: float = 32.0
 @export var clip_vertical_padding: float = 6.0
 @export var clip_horizontal_padding: float = 2.0
+@export var snap_enabled: bool = true
 
 var background_color := Color(0.10, 0.10, 0.12)
 var header_color := Color(0.16, 0.16, 0.20)
@@ -36,6 +37,10 @@ var selected_clip_outline_color := Color(1.0, 0.9, 0.35, 1.0)
 var selected_clip_overlay_color := Color(1.0, 1.0, 1.0, 0.08)
 var hovered_clip_outline_color := Color(1.0, 1.0, 1.0, 0.38)
 var hovered_clip_overlay_color := Color(1.0, 1.0, 1.0, 0.05)
+
+var is_dragging_clip: bool = false
+var dragged_clip_index: int = -1
+var drag_grab_offset: float = 0.0
 
 
 func _ready() -> void:
@@ -76,6 +81,9 @@ func set_track_count(value: int) -> void:
 
 func _timeline_to_x(position: float) -> float:
 	return position * pixels_per_subdivision
+
+func _x_to_timeline(x: float) -> float:
+	return x / pixels_per_subdivision
 
 func _track_to_y(track_index: int) -> float:
 	return header_height + (track_index * lane_height)
@@ -121,15 +129,103 @@ func _get_clip_index_at_position(position: Vector2) -> int:
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var mouse_motion_event := event as InputEventMouseMotion
-		_update_hovered_clip(mouse_motion_event.position)
+
+		if is_dragging_clip:
+			_update_clip_drag(mouse_motion_event.position)
+		else:
+			_update_hovered_clip(mouse_motion_event.position)
+
 		return
 
 	if event is InputEventMouseButton:
 		var mouse_button_event := event as InputEventMouseButton
 
-		if mouse_button_event.button_index == MOUSE_BUTTON_LEFT and mouse_button_event.pressed:
-			selected_clip_index = _get_clip_index_at_position(mouse_button_event.position)
-			queue_redraw()
+		if mouse_button_event.button_index == MOUSE_BUTTON_LEFT:
+			if mouse_button_event.pressed:
+				var clicked_clip_index := _get_clip_index_at_position(mouse_button_event.position)
+
+				selected_clip_index = clicked_clip_index
+
+				if clicked_clip_index != -1:
+					_begin_clip_drag(clicked_clip_index, mouse_button_event.position)
+				else:
+					queue_redraw()
+			else:
+				_end_clip_drag()
+
+#Dragging
+func _snap_timeline_position(position: float) -> float:
+	if not snap_enabled:
+		return position
+
+	return round(position)
+	
+func _update_cursor_shape() -> void:
+	if is_dragging_clip:
+		mouse_default_cursor_shape = Control.CURSOR_MOVE
+	elif hovered_clip_index != -1:
+		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	else:
+		mouse_default_cursor_shape = Control.CURSOR_ARROW
+
+func _begin_clip_drag(clip_index: int, mouse_position: Vector2) -> void:
+	if clip_index < 0 or clip_index >= fake_clips.size():
+		return
+
+	var clip := fake_clips[clip_index]
+
+	if not clip.has("start"):
+		return
+
+	var clip_start: float = clip["start"]
+	var mouse_timeline_position := _x_to_timeline(mouse_position.x)
+
+	is_dragging_clip = true
+	dragged_clip_index = clip_index
+	drag_grab_offset = mouse_timeline_position - clip_start
+
+	selected_clip_index = clip_index
+	hovered_clip_index = -1
+	_update_cursor_shape()
+	queue_redraw()
+
+func _update_clip_drag(mouse_position: Vector2) -> void:
+	if not is_dragging_clip:
+		return
+
+	if dragged_clip_index < 0 or dragged_clip_index >= fake_clips.size():
+		return
+
+	var clip := fake_clips[dragged_clip_index]
+
+	if not clip.has("start") or not clip.has("length"):
+		return
+
+	var length: float = clip["length"]
+	var mouse_timeline_position := _x_to_timeline(mouse_position.x)
+
+	var new_start := mouse_timeline_position - drag_grab_offset
+	new_start = _snap_timeline_position(new_start)
+
+	var max_start := max(0.0, float(_get_total_subdivisions()) - length)
+	new_start = clamp(new_start, 0.0, max_start)
+
+	clip["start"] = new_start
+	fake_clips[dragged_clip_index] = clip
+
+	queue_redraw()
+
+func _end_clip_drag() -> void:
+	if not is_dragging_clip:
+		return
+
+	is_dragging_clip = false
+	dragged_clip_index = -1
+	drag_grab_offset = 0.0
+
+	_update_cursor_shape()
+	queue_redraw()
+
 
 func _create_demo_clips() -> void:
 	if not fake_clips.is_empty():
@@ -179,6 +275,8 @@ func _create_demo_clips() -> void:
 			"color": Color(0.70, 0.40, 0.85)
 		}
 	]
+
+#Drawing rectangles
 
 func _draw() -> void:
 	_draw_background()
@@ -319,16 +417,14 @@ func _update_hovered_clip(position: Vector2) -> void:
 		return
 
 	hovered_clip_index = new_hovered_clip_index
-
-	if hovered_clip_index == -1:
-		mouse_default_cursor_shape = Control.CURSOR_ARROW
-	else:
-		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-
+	_update_cursor_shape()
 	queue_redraw()
 
 func _on_timeline_panel_mouse_exited():
+	if is_dragging_clip:
+		return
+
 	if hovered_clip_index != -1:
 		hovered_clip_index = -1
-		mouse_default_cursor_shape = Control.CURSOR_ARROW
+		_update_cursor_shape()
 		queue_redraw()
