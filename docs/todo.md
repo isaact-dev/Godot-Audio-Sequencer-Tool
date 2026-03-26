@@ -1,2 +1,2 @@
 # Todo
-- Add autoscrolling when dragging clip
+- Add autoscrolling when dragging clip - DONE

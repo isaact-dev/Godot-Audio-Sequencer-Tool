@@ -95,3 +95,25 @@ Adjustments shoud also be able to be made using the arrow keys.
 Microadjustments should also be able to be made with the arrow keys while holding shift.
 
 For this to work, focus should be assigned to the correct control node to override default arrow key behaviour in the editor.
+
+## 2026-03-26 — Initial UI status signals should be emitted after scene startup is complete
+
+### Decision
+Initial UI status signals should be emitted after scene startup is complete so parent dock elements are fully initialized before they react.
+This is done by calling the first text change on ready deferred.
+
+## 2026-03-20 — Scrolling should be handled in code instead of using ScrollContainer follow-focus
+
+### Decision
+
+The sequencer should not rely on `ScrollContainer` follow-focus behavior for timeline scrolling.
+
+Scrolling should instead be handled explicitly in code for:
+- clip dragging
+- keyboard nudging
+- keeping the selected clip visible during editing
+
+### Reasoning
+
+The current timeline is built as a custom-drawn `TimelineControl` where clips are rendered as rectangles inside a single control.
+The clips are not separate child `Control` nodes, so built-in focus-follow does not work with this method.

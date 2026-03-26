@@ -14,6 +14,9 @@ class_name TimelineControl
 @export var snap_enabled: bool = true
 @export var keyboard_nudge_amount: float = 1.0
 @export var keyboard_micro_nudge_amount: float = 0.1
+@export var auto_scroll_edge_threshold: float = 48.0
+@export var auto_scroll_speed: float = 16.0
+@export var visible_scroll_margin: float = 24.0
 
 var background_color := Color(0.10, 0.10, 0.12)
 var header_color := Color(0.16, 0.16, 0.20)
@@ -45,6 +48,7 @@ var dragged_clip_index: int = -1
 var drag_grab_offset: float = 0.0
 var temporary_snap_override_active: bool = false
 
+signal status_text_changed(text: String)
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -52,8 +56,8 @@ func _ready() -> void:
 
 	_create_demo_clips()
 	_update_timeline_size()
+	call_deferred("_emit_status_text")
 	queue_redraw()
-
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
@@ -132,6 +136,30 @@ func _get_clip_index_at_position(position: Vector2) -> int:
 
 	return -1
 
+func _build_status_text() -> String:
+	var snap_text := "On" if _is_snap_active() else "Off"
+
+	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
+		return "Selected: None | Start: - | Length: - | Snap: %s" % snap_text
+
+	var clip := fake_clips[selected_clip_index]
+
+	if not clip.has("name") or not clip.has("start") or not clip.has("length"):
+		return "Selected: Invalid | Start: - | Length: - | Snap: %s" % snap_text
+
+	var clip_name := str(clip["name"])
+	var start: float = clip["start"]
+	var length: float = clip["length"]
+
+	return "Selected: %s | Start: %.2f | Length: %.2f | Snap: %s" % [
+		clip_name,
+		start,
+		length,
+		snap_text
+	]
+
+func _emit_status_text() -> void:
+	status_text_changed.emit(_build_status_text())
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -179,7 +207,7 @@ func _gui_input(event: InputEvent) -> void:
 				var clicked_clip_index := _get_clip_index_at_position(mouse_button_event.position)
 
 				selected_clip_index = clicked_clip_index
-
+				_emit_status_text()
 				if clicked_clip_index != -1:
 					_begin_clip_drag(clicked_clip_index, mouse_button_event.position)
 				else:
@@ -224,7 +252,9 @@ func _begin_clip_drag(clip_index: int, mouse_position: Vector2) -> void:
 	selected_clip_index = clip_index
 	hovered_clip_index = -1
 	_update_cursor_shape()
+	_ensure_selected_clip_visible()
 	queue_redraw()
+
 
 func _update_clip_drag(mouse_position: Vector2) -> void:
 	if not is_dragging_clip:
@@ -250,7 +280,10 @@ func _update_clip_drag(mouse_position: Vector2) -> void:
 	clip["start"] = new_start
 	fake_clips[dragged_clip_index] = clip
 
+	_auto_scroll_during_drag(mouse_position)
+	_emit_status_text()
 	queue_redraw()
+
 
 
 func _end_clip_drag() -> void:
@@ -263,11 +296,13 @@ func _end_clip_drag() -> void:
 	temporary_snap_override_active = false
 
 	_update_cursor_shape()
+	_emit_status_text()
 	queue_redraw()
 
 
 func _is_snap_active() -> bool:
 	return snap_enabled != temporary_snap_override_active
+
 
 func _nudge_selected_clip(amount: float, use_snap: bool) -> void:
 	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
@@ -292,7 +327,78 @@ func _nudge_selected_clip(amount: float, use_snap: bool) -> void:
 	clip["start"] = new_start
 	fake_clips[selected_clip_index] = clip
 
+	_ensure_selected_clip_visible()
+	_emit_status_text()
 	queue_redraw()
+
+
+func _get_scroll_container() -> ScrollContainer:
+	var parent_node := get_parent()
+
+	if parent_node is ScrollContainer:
+		return parent_node as ScrollContainer
+
+	return null
+
+func _get_max_horizontal_scroll(scroll_container: ScrollContainer) -> float:
+	return max(0.0, _get_total_width() - scroll_container.size.x)
+
+func _set_horizontal_scroll(value: float) -> void:
+	var scroll_container := _get_scroll_container()
+
+	if scroll_container == null:
+		return
+
+	var max_scroll := _get_max_horizontal_scroll(scroll_container)
+	scroll_container.scroll_horizontal = int(clamp(value, 0.0, max_scroll))
+
+func _ensure_rect_visible_horizontally(rect: Rect2, margin: float = 0.0) -> void:
+	var scroll_container := _get_scroll_container()
+
+	if scroll_container == null:
+		return
+
+	var visible_left := float(scroll_container.scroll_horizontal)
+	var visible_right := visible_left + scroll_container.size.x
+
+	var target_scroll := visible_left
+
+	if rect.position.x - margin < visible_left:
+		target_scroll = rect.position.x - margin
+	elif rect.end.x + margin > visible_right:
+		target_scroll = rect.end.x + margin - scroll_container.size.x
+
+	_set_horizontal_scroll(target_scroll)
+
+func _ensure_selected_clip_visible() -> void:
+	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
+		return
+
+	var clip := fake_clips[selected_clip_index]
+
+	if not clip.has("track") or not clip.has("start") or not clip.has("length"):
+		return
+
+	var rect := _get_clip_rect(clip)
+
+	if rect.size.x <= 1.0 or rect.size.y <= 1.0:
+		return
+
+	_ensure_rect_visible_horizontally(rect, visible_scroll_margin)
+
+func _auto_scroll_during_drag(mouse_position: Vector2) -> void:
+	var scroll_container := _get_scroll_container()
+
+	if scroll_container == null:
+		return
+
+	var visible_left := float(scroll_container.scroll_horizontal)
+	var visible_right := visible_left + scroll_container.size.x
+
+	if mouse_position.x < visible_left + auto_scroll_edge_threshold:
+		_set_horizontal_scroll(visible_left - auto_scroll_speed)
+	elif mouse_position.x > visible_right - auto_scroll_edge_threshold:
+		_set_horizontal_scroll(visible_left + auto_scroll_speed)
 
 
 func _create_demo_clips() -> void:

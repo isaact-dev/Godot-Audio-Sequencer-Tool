@@ -15,38 +15,42 @@ script = ExtResource("1_o187q")
 layout_mode = 2
 text = "Audio Sequencer"
 
-[node name="HBoxContainer" type="HBoxContainer" parent="." unique_id=518287640]
+[node name="ToolBar" type="HBoxContainer" parent="." unique_id=518287640]
 layout_mode = 2
 
-[node name="ButtonNew" type="Button" parent="HBoxContainer" unique_id=308137890]
+[node name="ButtonNew" type="Button" parent="ToolBar" unique_id=308137890]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 0
 text = "New"
 
-[node name="ButtonOpen" type="Button" parent="HBoxContainer" unique_id=1744476604]
+[node name="ButtonOpen" type="Button" parent="ToolBar" unique_id=1744476604]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 0
 text = "Open"
 
-[node name="ButtonSave" type="Button" parent="HBoxContainer" unique_id=306589442]
+[node name="ButtonSave" type="Button" parent="ToolBar" unique_id=306589442]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 0
 text = "Save"
 
-[node name="ButtonPlay" type="Button" parent="HBoxContainer" unique_id=1281842796]
+[node name="ButtonPlay" type="Button" parent="ToolBar" unique_id=1281842796]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 0
 text = "▶︎"
 
-[node name="ButtonPause" type="Button" parent="HBoxContainer" unique_id=1729330263]
+[node name="ButtonPause" type="Button" parent="ToolBar" unique_id=1729330263]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 0
 text = "||"
+
+[node name="StatusLabel" type="Label" parent="." unique_id=1230435216]
+layout_mode = 2
+text = "Selected: None | Start: - | Length: - | Snap: On"
 
 [node name="HSplitContainer" type="HSplitContainer" parent="." unique_id=675055457]
 layout_mode = 2
@@ -129,14 +133,17 @@ custom_minimum_size = Vector2(3072, 272)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
+focus_mode = 2
 script = ExtResource("2_pn50h")
 track_count = 5
-keyboard_nudge_amount = null
-keyboard_micro_nudge_amount = null
+auto_scroll_edge_threshold = null
+auto_scroll_speed = null
+visible_scroll_margin = null
 
-[connection signal="pressed" from="HBoxContainer/ButtonNew" to="." method="_on_button_new_pressed"]
-[connection signal="pressed" from="HBoxContainer/ButtonOpen" to="." method="_on_button_open_pressed"]
-[connection signal="pressed" from="HBoxContainer/ButtonSave" to="." method="_on_button_save_pressed"]
-[connection signal="pressed" from="HBoxContainer/ButtonPlay" to="." method="_on_button_play_pressed"]
-[connection signal="pressed" from="HBoxContainer/ButtonPause" to="." method="_on_button_pause_pressed"]
+[connection signal="pressed" from="ToolBar/ButtonNew" to="." method="_on_button_new_pressed"]
+[connection signal="pressed" from="ToolBar/ButtonOpen" to="." method="_on_button_open_pressed"]
+[connection signal="pressed" from="ToolBar/ButtonSave" to="." method="_on_button_save_pressed"]
+[connection signal="pressed" from="ToolBar/ButtonPlay" to="." method="_on_button_play_pressed"]
+[connection signal="pressed" from="ToolBar/ButtonPause" to="." method="_on_button_pause_pressed"]
 [connection signal="mouse_exited" from="HSplitContainer/TimelineBox/TimelinePanel" to="HSplitContainer/TimelineBox/TimelinePanel/ScrollContainer/TimelineControl" method="_on_timeline_panel_mouse_exited"]
+[connection signal="status_text_changed" from="HSplitContainer/TimelineBox/TimelinePanel/ScrollContainer/TimelineControl" to="." method="_on_timeline_control_status_text_changed"]
