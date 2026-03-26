@@ -64,24 +64,34 @@ This matches the visual layers of the timeline. The clip that appears on top sho
 Even if overlapping clips are not intended in the final version, this rule provides behavior for temporary overlaps, test data, or future edge cases.
 
 
-## 2026-04-20 — Hover state should be tracked separately from selection state
+## 2026-03-21 — Hover state should be tracked separately from selection state
 
 ### Decision
 
 Hover state should be tracked separately from selection state so the timeline can distinguish between the currently selected clip and the clip currently under the cursor.
 This way a clip can be selected whilst another is hovered over.
 
-## 2026-04-20 — Clip dragging should preserve the mouse’s relative grab offset inside the clip
+## 2026-03-21 — Clip dragging should preserve the mouse’s relative grab offset inside the clip
 
 ### Decision
 
 Clip dragging should preserve the mouse’s relative grab offset inside the clip so the clip does not jump when dragging begins.
 This is done by adding drag state variables.
 
-## 2026-04-20 — Initially focus on horizontal dragging
+## 2026-03-21 — Initially focus on horizontal dragging
 
 ### Decision
 
 By focusing on horizontal dragging first, a lot of complications are avoided. 
 It is important that the snapping and micro-adjustments in the horizontal direction are as user friendly as possible.
 Track switching will be implemented later.
+
+## 2026-03-26 — Dragging should use snap by default but allow a temporary snap override / adjustments should be possible with arrow keys
+
+### Decision
+Dragging should use snap by default but allow a temporary snap override so users can make quick off-grid micro-adjustments without changing the global snap setting.
+This should be done by using the shift key as a hold hotkey.
+Adjustments shoud also be able to be made using the arrow keys.
+Microadjustments should also be able to be made with the arrow keys while holding shift.
+
+For this to work, focus should be assigned to the correct control node to override default arrow key behaviour in the editor.

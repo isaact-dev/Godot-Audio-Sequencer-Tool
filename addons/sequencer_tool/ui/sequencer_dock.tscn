@@ -131,7 +131,8 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 script = ExtResource("2_pn50h")
 track_count = 5
-snap_enabled = false
+keyboard_nudge_amount = null
+keyboard_micro_nudge_amount = null
 
 [connection signal="pressed" from="HBoxContainer/ButtonNew" to="." method="_on_button_new_pressed"]
 [connection signal="pressed" from="HBoxContainer/ButtonOpen" to="." method="_on_button_open_pressed"]

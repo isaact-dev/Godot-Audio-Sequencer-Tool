@@ -12,6 +12,8 @@ class_name TimelineControl
 @export var clip_vertical_padding: float = 6.0
 @export var clip_horizontal_padding: float = 2.0
 @export var snap_enabled: bool = true
+@export var keyboard_nudge_amount: float = 1.0
+@export var keyboard_micro_nudge_amount: float = 0.1
 
 var background_color := Color(0.10, 0.10, 0.12)
 var header_color := Color(0.16, 0.16, 0.20)
@@ -41,13 +43,17 @@ var hovered_clip_overlay_color := Color(1.0, 1.0, 1.0, 0.05)
 var is_dragging_clip: bool = false
 var dragged_clip_index: int = -1
 var drag_grab_offset: float = 0.0
+var temporary_snap_override_active: bool = false
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	focus_mode = Control.FOCUS_ALL
+
 	_create_demo_clips()
 	_update_timeline_size()
 	queue_redraw()
+
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
@@ -126,7 +132,33 @@ func _get_clip_index_at_position(position: Vector2) -> int:
 
 	return -1
 
+
+
 func _gui_input(event: InputEvent) -> void:
+	_update_temporary_snap_override_from_event(event)
+
+	if event is InputEventKey:
+		var key_event := event as InputEventKey
+
+		if key_event.pressed:
+			if key_event.keycode == KEY_LEFT:
+				if key_event.shift_pressed:
+					_nudge_selected_clip(-keyboard_micro_nudge_amount, false)
+				else:
+					_nudge_selected_clip(-keyboard_nudge_amount, true)
+
+				accept_event()
+				return
+
+			elif key_event.keycode == KEY_RIGHT:
+				if key_event.shift_pressed:
+					_nudge_selected_clip(keyboard_micro_nudge_amount, false)
+				else:
+					_nudge_selected_clip(keyboard_nudge_amount, true)
+
+				accept_event()
+				return
+
 	if event is InputEventMouseMotion:
 		var mouse_motion_event := event as InputEventMouseMotion
 
@@ -142,6 +174,8 @@ func _gui_input(event: InputEvent) -> void:
 
 		if mouse_button_event.button_index == MOUSE_BUTTON_LEFT:
 			if mouse_button_event.pressed:
+				grab_focus()
+
 				var clicked_clip_index := _get_clip_index_at_position(mouse_button_event.position)
 
 				selected_clip_index = clicked_clip_index
@@ -152,14 +186,17 @@ func _gui_input(event: InputEvent) -> void:
 					queue_redraw()
 			else:
 				_end_clip_drag()
+				_update_hovered_clip(mouse_button_event.position)
+
 
 #Dragging
+
 func _snap_timeline_position(position: float) -> float:
-	if not snap_enabled:
+	if not _is_snap_active():
 		return position
 
 	return round(position)
-	
+
 func _update_cursor_shape() -> void:
 	if is_dragging_clip:
 		mouse_default_cursor_shape = Control.CURSOR_MOVE
@@ -215,6 +252,7 @@ func _update_clip_drag(mouse_position: Vector2) -> void:
 
 	queue_redraw()
 
+
 func _end_clip_drag() -> void:
 	if not is_dragging_clip:
 		return
@@ -222,8 +260,38 @@ func _end_clip_drag() -> void:
 	is_dragging_clip = false
 	dragged_clip_index = -1
 	drag_grab_offset = 0.0
+	temporary_snap_override_active = false
 
 	_update_cursor_shape()
+	queue_redraw()
+
+
+func _is_snap_active() -> bool:
+	return snap_enabled != temporary_snap_override_active
+
+func _nudge_selected_clip(amount: float, use_snap: bool) -> void:
+	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
+		return
+
+	var clip := fake_clips[selected_clip_index]
+
+	if not clip.has("start") or not clip.has("length"):
+		return
+
+	var start: float = clip["start"]
+	var length: float = clip["length"]
+
+	var new_start := start + amount
+
+	if use_snap:
+		new_start = round(new_start)
+
+	var max_start := max(0.0, float(_get_total_subdivisions()) - length)
+	new_start = clamp(new_start, 0.0, max_start)
+
+	clip["start"] = new_start
+	fake_clips[selected_clip_index] = clip
+
 	queue_redraw()
 
 
@@ -275,6 +343,14 @@ func _create_demo_clips() -> void:
 			"color": Color(0.70, 0.40, 0.85)
 		}
 	]
+
+func _update_temporary_snap_override_from_event(event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		var mouse_motion_event := event as InputEventMouseMotion
+		temporary_snap_override_active = mouse_motion_event.shift_pressed
+	elif event is InputEventMouseButton:
+		var mouse_button_event := event as InputEventMouseButton
+		temporary_snap_override_active = mouse_button_event.shift_pressed
 
 #Drawing rectangles
 
