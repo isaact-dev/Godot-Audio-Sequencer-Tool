@@ -60,6 +60,7 @@ var active_resize_handle_color := Color(1.0, 0.9, 0.35, 0.95)
 
 
 signal status_text_changed(text: String)
+signal selected_clip_changed(clip_index: int, clip_data: Dictionary)
 
 
 func _ready() -> void:
@@ -70,6 +71,7 @@ func _ready() -> void:
 	_create_demo_clips()
 	_update_timeline_size()
 	call_deferred("_emit_status_text")
+	call_deferred("_emit_selected_clip_changed")
 	queue_redraw()
 
 
@@ -234,6 +236,7 @@ func _gui_input(event: InputEvent) -> void:
 
 				if clicked_resize_clip_index != -1:
 					selected_clip_index = clicked_resize_clip_index
+					_emit_selected_clip_changed()
 					_begin_clip_resize(clicked_resize_clip_index, mouse_button_event.position)
 					return
 
@@ -241,6 +244,7 @@ func _gui_input(event: InputEvent) -> void:
 
 				selected_clip_index = clicked_clip_index
 				_emit_status_text()
+				_emit_selected_clip_changed()
 
 				if clicked_clip_index != -1:
 					_begin_clip_drag(clicked_clip_index, mouse_button_event.position)
@@ -342,6 +346,7 @@ func _update_clip_drag(mouse_position: Vector2) -> void:
 	fake_clips[dragged_clip_index] = clip
 
 	_emit_status_text()
+	_emit_selected_clip_changed()
 	queue_redraw()
 
 
@@ -358,6 +363,7 @@ func _end_clip_drag() -> void:
 
 	_update_cursor_shape()
 	_emit_status_text()
+	_emit_selected_clip_changed()
 	queue_redraw()
 
 
@@ -389,6 +395,70 @@ func _nudge_selected_clip(amount: float, use_snap: bool) -> void:
 	fake_clips[selected_clip_index] = clip
 
 	_emit_status_text()
+	_emit_selected_clip_changed()
+	queue_redraw()
+
+
+func set_selected_clip_name(value: String) -> void:
+	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
+		return
+
+	var clip := fake_clips[selected_clip_index]
+	clip["name"] = value
+	fake_clips[selected_clip_index] = clip
+
+	_emit_status_text()
+	_emit_selected_clip_changed()
+	queue_redraw()
+
+func set_selected_clip_track(value: int) -> void:
+	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
+		return
+
+	var clip := fake_clips[selected_clip_index]
+	clip["track"] = clamp(value, 0, track_count - 1)
+	fake_clips[selected_clip_index] = clip
+
+	_emit_status_text()
+	_emit_selected_clip_changed()
+	queue_redraw()
+
+func set_selected_clip_start(value: float) -> void:
+	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
+		return
+
+	var clip := fake_clips[selected_clip_index]
+
+	if not clip.has("length"):
+		return
+
+	var length: float = clip["length"]
+	var max_start := max(0.0, float(_get_total_subdivisions()) - length)
+
+	clip["start"] = clamp(value, 0.0, max_start)
+	fake_clips[selected_clip_index] = clip
+
+	_emit_status_text()
+	_emit_selected_clip_changed()
+	queue_redraw()
+
+func set_selected_clip_length(value: float) -> void:
+	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
+		return
+
+	var clip := fake_clips[selected_clip_index]
+
+	if not clip.has("start"):
+		return
+
+	var start: float = clip["start"]
+	var max_length := max(min_clip_length, float(_get_total_subdivisions()) - start)
+
+	clip["length"] = clamp(value, min_clip_length, max_length)
+	fake_clips[selected_clip_index] = clip
+
+	_emit_status_text()
+	_emit_selected_clip_changed()
 	queue_redraw()
 
 
@@ -534,6 +604,7 @@ func _begin_clip_resize(clip_index: int, mouse_position: Vector2) -> void:
 	hovered_resize_clip_index = clip_index
 	_update_cursor_shape()
 	_emit_status_text()
+	_emit_selected_clip_changed()
 	queue_redraw()
 
 func _update_clip_resize(mouse_position: Vector2) -> void:
@@ -564,6 +635,7 @@ func _update_clip_resize(mouse_position: Vector2) -> void:
 	fake_clips[resized_clip_index] = clip
 
 	_emit_status_text()
+	_emit_selected_clip_changed()
 	queue_redraw()
 
 
@@ -578,7 +650,28 @@ func _end_clip_resize() -> void:
 
 	_update_cursor_shape()
 	_emit_status_text()
+	_emit_selected_clip_changed()
 	queue_redraw()
+
+
+func _get_selected_clip_data() -> Dictionary:
+	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
+		return {}
+
+	return fake_clips[selected_clip_index].duplicate(true)
+
+func _emit_selected_clip_changed() -> void:
+	selected_clip_changed.emit(selected_clip_index, _get_selected_clip_data())
+
+func clear_selected_clip() -> void:
+	if selected_clip_index == -1:
+		return
+
+	selected_clip_index = -1
+	_emit_status_text()
+	_emit_selected_clip_changed()
+	queue_redraw()
+
 
 func _create_demo_clips() -> void:
 	if not fake_clips.is_empty():

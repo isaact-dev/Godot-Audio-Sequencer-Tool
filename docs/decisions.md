@@ -102,7 +102,7 @@ For this to work, focus should be assigned to the correct control node to overri
 Initial UI status signals should be emitted after scene startup is complete so parent dock elements are fully initialized before they react.
 This is done by calling the first text change on ready deferred.
 
-## 2026-03-20 — Scrolling should be handled in code instead of using ScrollContainer follow-focus
+## 2026-03-28 — Scrolling should be handled in code instead of using ScrollContainer follow-focus
 
 ### Decision
 
@@ -118,14 +118,14 @@ Scrolling should instead be handled explicitly in code for:
 The current timeline is built as a custom-drawn `TimelineControl` where clips are rendered as rectangles inside a single control.
 The clips are not separate child `Control` nodes, so built-in focus-follow does not work with this method.
 
-## 2026-03-20 — Continuous drag scrolling should be frame-driven rather than mouse-motion-driven
+## 2026-03-28 — Continuous drag scrolling should be frame-driven rather than mouse-motion-driven
 
 ### Decision
 
 Continuous drag scrolling should be frame-driven rather than mouse-motion-driven so holding the cursor at the edge keeps the viewport moving.
 This requires refactoring current code and adding a delta process function.
 
-## 2026-03-20 — Clip length should have a minimum limit
+## 2026-03-28 — Clip length should have a minimum limit
 
 ### Decision
 
@@ -134,3 +134,14 @@ Clips should have a minimum allowed length so they are never resized to zero or 
 ### Reasoning
 
 Without a lower limit, resizing could create clips that disappear visually, become impossible to select, or reach negative length states.
+
+
+## 2026-03-28 — Settings panel switching should not change the main splitter layout
+
+### Decision
+
+The dock should use a stable left-side settings host inside the main `HSplitContainer`, and clip settings / timeline settings should switch inside that host rather than being shown or hidden as direct splitter children.
+
+### Reasoning
+
+Showing and hiding direct children of the splitter causes the split layout to recalculate and makes the dock width feel inconsistent.
