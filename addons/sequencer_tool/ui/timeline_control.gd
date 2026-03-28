@@ -109,6 +109,15 @@ func _timeline_to_x(position: float) -> float:
 func _x_to_timeline(x: float) -> float:
 	return x / pixels_per_subdivision
 
+func _y_to_track_index(y: float) -> int:
+	var local_y := y - header_height
+
+	if local_y < 0.0:
+		return 0
+
+	var track_index := int(floor(local_y / lane_height))
+	return clamp(track_index, 0, track_count - 1)
+
 func _track_to_y(track_index: int) -> float:
 	return header_height + (track_index * lane_height)
 
@@ -164,11 +173,13 @@ func _build_status_text() -> String:
 	var clip_name := str(clip["name"])
 	var start: float = clip["start"]
 	var length: float = clip["length"]
+	var track: int = clip["track"]
 
-	return "Selected: %s | Start: %.2f | Length: %.2f | Snap: %s" % [
+	return "Selected: %s | Start: %.2f | Length: %.2f | Track: %d | Snap: %s" % [
 		clip_name,
 		start,
 		length,
+		track,
 		snap_text
 	]
 
@@ -312,7 +323,7 @@ func _update_clip_drag(mouse_position: Vector2) -> void:
 
 	var clip := fake_clips[dragged_clip_index]
 
-	if not clip.has("start") or not clip.has("length"):
+	if not clip.has("start") or not clip.has("length") or not clip.has("track"):
 		return
 
 	var length: float = clip["length"]
@@ -324,9 +335,11 @@ func _update_clip_drag(mouse_position: Vector2) -> void:
 	var max_start := max(0.0, float(_get_total_subdivisions()) - length)
 	new_start = clamp(new_start, 0.0, max_start)
 
-	clip["start"] = new_start
-	fake_clips[dragged_clip_index] = clip
+	var new_track := _y_to_track_index(mouse_position.y)
 
+	clip["start"] = new_start
+	clip["track"] = new_track
+	fake_clips[dragged_clip_index] = clip
 
 	_emit_status_text()
 	queue_redraw()
