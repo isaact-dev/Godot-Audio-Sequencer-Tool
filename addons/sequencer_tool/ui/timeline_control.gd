@@ -50,14 +50,17 @@ var temporary_snap_override_active: bool = false
 
 signal status_text_changed(text: String)
 
+
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	focus_mode = Control.FOCUS_ALL
+	set_process(true)
 
 	_create_demo_clips()
 	_update_timeline_size()
 	call_deferred("_emit_status_text")
 	queue_redraw()
+
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
@@ -190,9 +193,7 @@ func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var mouse_motion_event := event as InputEventMouseMotion
 
-		if is_dragging_clip:
-			_update_clip_drag(mouse_motion_event.position)
-		else:
+		if not is_dragging_clip:
 			_update_hovered_clip(mouse_motion_event.position)
 
 		return
@@ -208,6 +209,7 @@ func _gui_input(event: InputEvent) -> void:
 
 				selected_clip_index = clicked_clip_index
 				_emit_status_text()
+
 				if clicked_clip_index != -1:
 					_begin_clip_drag(clicked_clip_index, mouse_button_event.position)
 				else:
@@ -216,6 +218,18 @@ func _gui_input(event: InputEvent) -> void:
 				_end_clip_drag()
 				_update_hovered_clip(mouse_button_event.position)
 
+func _process(delta: float) -> void:
+	if not is_dragging_clip:
+		return
+
+	temporary_snap_override_active = Input.is_key_pressed(KEY_SHIFT)
+
+	var mouse_position := get_local_mouse_position()
+
+	_auto_scroll_during_drag(mouse_position, delta)
+
+	mouse_position = get_local_mouse_position()
+	_update_clip_drag(mouse_position)
 
 #Dragging
 
@@ -280,9 +294,9 @@ func _update_clip_drag(mouse_position: Vector2) -> void:
 	clip["start"] = new_start
 	fake_clips[dragged_clip_index] = clip
 
-	_auto_scroll_during_drag(mouse_position)
 	_emit_status_text()
 	queue_redraw()
+
 
 
 
@@ -386,7 +400,7 @@ func _ensure_selected_clip_visible() -> void:
 
 	_ensure_rect_visible_horizontally(rect, visible_scroll_margin)
 
-func _auto_scroll_during_drag(mouse_position: Vector2) -> void:
+func _auto_scroll_during_drag(mouse_position: Vector2, delta: float) -> void:
 	var scroll_container := _get_scroll_container()
 
 	if scroll_container == null:
@@ -395,10 +409,26 @@ func _auto_scroll_during_drag(mouse_position: Vector2) -> void:
 	var visible_left := float(scroll_container.scroll_horizontal)
 	var visible_right := visible_left + scroll_container.size.x
 
+	var scroll_direction := 0.0
+	var strength := 0.0
+
 	if mouse_position.x < visible_left + auto_scroll_edge_threshold:
-		_set_horizontal_scroll(visible_left - auto_scroll_speed)
+		var distance_to_edge := (visible_left + auto_scroll_edge_threshold) - mouse_position.x
+		strength = clamp(distance_to_edge / auto_scroll_edge_threshold, 0.0, 1.0)
+		scroll_direction = -1.0
 	elif mouse_position.x > visible_right - auto_scroll_edge_threshold:
-		_set_horizontal_scroll(visible_left + auto_scroll_speed)
+		var distance_to_edge := mouse_position.x - (visible_right - auto_scroll_edge_threshold)
+		strength = clamp(distance_to_edge / auto_scroll_edge_threshold, 0.0, 1.0)
+		scroll_direction = 1.0
+
+	if scroll_direction == 0.0:
+		return
+
+	var scroll_amount := auto_scroll_speed * 60.0 * delta
+	scroll_amount *= lerp(0.35, 1.0, strength)
+
+	_set_horizontal_scroll(visible_left + (scroll_amount * scroll_direction))
+
 
 
 func _create_demo_clips() -> void:
@@ -450,6 +480,7 @@ func _create_demo_clips() -> void:
 		}
 	]
 
+
 func _update_temporary_snap_override_from_event(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var mouse_motion_event := event as InputEventMouseMotion
@@ -457,6 +488,9 @@ func _update_temporary_snap_override_from_event(event: InputEvent) -> void:
 	elif event is InputEventMouseButton:
 		var mouse_button_event := event as InputEventMouseButton
 		temporary_snap_override_active = mouse_button_event.shift_pressed
+	elif event is InputEventKey:
+		var key_event := event as InputEventKey
+		temporary_snap_override_active = key_event.shift_pressed
 
 #Drawing rectangles
 

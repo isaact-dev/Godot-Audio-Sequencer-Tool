@@ -117,3 +117,10 @@ Scrolling should instead be handled explicitly in code for:
 
 The current timeline is built as a custom-drawn `TimelineControl` where clips are rendered as rectangles inside a single control.
 The clips are not separate child `Control` nodes, so built-in focus-follow does not work with this method.
+
+## 2026-03-20 — Continuous drag scrolling should be frame-driven rather than mouse-motion-driven
+
+### Decision
+
+Continuous drag scrolling should be frame-driven rather than mouse-motion-driven so holding the cursor at the edge keeps the viewport moving.
+This requires refactoring current code and adding a delta process function.
