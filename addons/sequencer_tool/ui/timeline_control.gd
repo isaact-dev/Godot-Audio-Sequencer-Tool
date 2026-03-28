@@ -17,6 +17,8 @@ class_name TimelineControl
 @export var auto_scroll_edge_threshold: float = 48.0
 @export var auto_scroll_speed: float = 16.0
 @export var visible_scroll_margin: float = 24.0
+@export var min_clip_length: float = 0.85
+@export var resize_handle_width: float = 10.0
 
 var background_color := Color(0.10, 0.10, 0.12)
 var header_color := Color(0.16, 0.16, 0.20)
@@ -37,6 +39,7 @@ var fake_clips: Array[Dictionary] = []
 
 var selected_clip_index: int = -1
 var hovered_clip_index: int = -1
+var hovered_resize_clip_index: int = -1
 
 var selected_clip_outline_color := Color(1.0, 0.9, 0.35, 1.0)
 var selected_clip_overlay_color := Color(1.0, 1.0, 1.0, 0.08)
@@ -47,6 +50,14 @@ var is_dragging_clip: bool = false
 var dragged_clip_index: int = -1
 var drag_grab_offset: float = 0.0
 var temporary_snap_override_active: bool = false
+
+var is_resizing_clip: bool = false
+var resized_clip_index: int = -1
+var resize_grab_offset: float = 0.0
+
+var resize_handle_color := Color(1.0, 1.0, 1.0, 0.18)
+var active_resize_handle_color := Color(1.0, 0.9, 0.35, 0.95)
+
 
 signal status_text_changed(text: String)
 
@@ -190,13 +201,16 @@ func _gui_input(event: InputEvent) -> void:
 				accept_event()
 				return
 
+
 	if event is InputEventMouseMotion:
 		var mouse_motion_event := event as InputEventMouseMotion
 
-		if not is_dragging_clip:
+		if not is_dragging_clip and not is_resizing_clip:
+			_update_hovered_resize_handle(mouse_motion_event.position)
 			_update_hovered_clip(mouse_motion_event.position)
 
 		return
+
 
 	if event is InputEventMouseButton:
 		var mouse_button_event := event as InputEventMouseButton
@@ -204,6 +218,13 @@ func _gui_input(event: InputEvent) -> void:
 		if mouse_button_event.button_index == MOUSE_BUTTON_LEFT:
 			if mouse_button_event.pressed:
 				grab_focus()
+
+				var clicked_resize_clip_index := _get_resize_handle_clip_index_at_position(mouse_button_event.position)
+
+				if clicked_resize_clip_index != -1:
+					selected_clip_index = clicked_resize_clip_index
+					_begin_clip_resize(clicked_resize_clip_index, mouse_button_event.position)
+					return
 
 				var clicked_clip_index := _get_clip_index_at_position(mouse_button_event.position)
 
@@ -215,11 +236,17 @@ func _gui_input(event: InputEvent) -> void:
 				else:
 					queue_redraw()
 			else:
-				_end_clip_drag()
+				if is_resizing_clip:
+					_end_clip_resize()
+				else:
+					_end_clip_drag()
+
+				_update_hovered_resize_handle(mouse_button_event.position)
 				_update_hovered_clip(mouse_button_event.position)
 
+
 func _process(delta: float) -> void:
-	if not is_dragging_clip:
+	if not is_dragging_clip and not is_resizing_clip:
 		return
 
 	temporary_snap_override_active = Input.is_key_pressed(KEY_SHIFT)
@@ -229,7 +256,12 @@ func _process(delta: float) -> void:
 	_auto_scroll_during_drag(mouse_position, delta)
 
 	mouse_position = get_local_mouse_position()
-	_update_clip_drag(mouse_position)
+
+	if is_resizing_clip:
+		_update_clip_resize(mouse_position)
+	elif is_dragging_clip:
+		_update_clip_drag(mouse_position)
+
 
 #Dragging
 
@@ -240,7 +272,9 @@ func _snap_timeline_position(position: float) -> float:
 	return round(position)
 
 func _update_cursor_shape() -> void:
-	if is_dragging_clip:
+	if is_resizing_clip or hovered_resize_clip_index != -1:
+		mouse_default_cursor_shape = Control.CURSOR_HSIZE
+	elif is_dragging_clip:
 		mouse_default_cursor_shape = Control.CURSOR_MOVE
 	elif hovered_clip_index != -1:
 		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -266,12 +300,11 @@ func _begin_clip_drag(clip_index: int, mouse_position: Vector2) -> void:
 	selected_clip_index = clip_index
 	hovered_clip_index = -1
 	_update_cursor_shape()
-	_ensure_selected_clip_visible()
 	queue_redraw()
 
 
 func _update_clip_drag(mouse_position: Vector2) -> void:
-	if not is_dragging_clip:
+	if not is_dragging_clip or is_resizing_clip:
 		return
 
 	if dragged_clip_index < 0 or dragged_clip_index >= fake_clips.size():
@@ -293,6 +326,7 @@ func _update_clip_drag(mouse_position: Vector2) -> void:
 
 	clip["start"] = new_start
 	fake_clips[dragged_clip_index] = clip
+
 
 	_emit_status_text()
 	queue_redraw()
@@ -341,7 +375,6 @@ func _nudge_selected_clip(amount: float, use_snap: bool) -> void:
 	clip["start"] = new_start
 	fake_clips[selected_clip_index] = clip
 
-	_ensure_selected_clip_visible()
 	_emit_status_text()
 	queue_redraw()
 
@@ -384,21 +417,6 @@ func _ensure_rect_visible_horizontally(rect: Rect2, margin: float = 0.0) -> void
 
 	_set_horizontal_scroll(target_scroll)
 
-func _ensure_selected_clip_visible() -> void:
-	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
-		return
-
-	var clip := fake_clips[selected_clip_index]
-
-	if not clip.has("track") or not clip.has("start") or not clip.has("length"):
-		return
-
-	var rect := _get_clip_rect(clip)
-
-	if rect.size.x <= 1.0 or rect.size.y <= 1.0:
-		return
-
-	_ensure_rect_visible_horizontally(rect, visible_scroll_margin)
 
 func _auto_scroll_during_drag(mouse_position: Vector2, delta: float) -> void:
 	var scroll_container := _get_scroll_container()
@@ -429,7 +447,125 @@ func _auto_scroll_during_drag(mouse_position: Vector2, delta: float) -> void:
 
 	_set_horizontal_scroll(visible_left + (scroll_amount * scroll_direction))
 
+func _get_resize_handle_rect(clip: Dictionary) -> Rect2:
+	var clip_rect := _get_clip_rect(clip)
+	var handle_width := min(resize_handle_width, clip_rect.size.x)
 
+	return Rect2(
+		clip_rect.end.x - handle_width,
+		clip_rect.position.y,
+		handle_width,
+		clip_rect.size.y
+	)
+
+func _get_resize_handle_clip_index_at_position(position: Vector2) -> int:
+	for i in range(fake_clips.size() - 1, -1, -1):
+		var clip := fake_clips[i]
+
+		if not clip.has("track") or not clip.has("start") or not clip.has("length"):
+			continue
+
+		var track_index: int = clip["track"]
+		var length: float = clip["length"]
+
+		if track_index < 0 or track_index >= track_count:
+			continue
+
+		if length <= 0.0:
+			continue
+
+		var handle_rect := _get_resize_handle_rect(clip)
+
+		if handle_rect.size.x <= 1.0 or handle_rect.size.y <= 1.0:
+			continue
+
+		if handle_rect.has_point(position):
+			return i
+
+	return -1
+
+func _update_hovered_resize_handle(position: Vector2) -> void:
+	var new_hovered_resize_clip_index := _get_resize_handle_clip_index_at_position(position)
+
+	if new_hovered_resize_clip_index == hovered_resize_clip_index:
+		return
+
+	hovered_resize_clip_index = new_hovered_resize_clip_index
+	_update_cursor_shape()
+	queue_redraw()
+
+func _begin_clip_resize(clip_index: int, mouse_position: Vector2) -> void:
+	if clip_index < 0 or clip_index >= fake_clips.size():
+		return
+
+	var clip := fake_clips[clip_index]
+
+	if not clip.has("start") or not clip.has("length"):
+		return
+
+	var clip_start: float = clip["start"]
+	var clip_length: float = clip["length"]
+	var clip_end := clip_start + clip_length
+	var mouse_timeline_position := _x_to_timeline(mouse_position.x)
+
+	is_resizing_clip = true
+	resized_clip_index = clip_index
+	resize_grab_offset = mouse_timeline_position - clip_end
+
+	is_dragging_clip = false
+	dragged_clip_index = -1
+	drag_grab_offset = 0.0
+
+	selected_clip_index = clip_index
+	hovered_clip_index = -1
+	hovered_resize_clip_index = clip_index
+	_update_cursor_shape()
+	_emit_status_text()
+	queue_redraw()
+
+func _update_clip_resize(mouse_position: Vector2) -> void:
+	if not is_resizing_clip:
+		return
+
+	if resized_clip_index < 0 or resized_clip_index >= fake_clips.size():
+		return
+
+	var clip := fake_clips[resized_clip_index]
+
+	if not clip.has("start") or not clip.has("length"):
+		return
+
+	var start: float = clip["start"]
+	var mouse_timeline_position := _x_to_timeline(mouse_position.x)
+
+	var new_end := mouse_timeline_position - resize_grab_offset
+	new_end = _snap_timeline_position(new_end)
+
+	var min_end := start + min_clip_length
+	var max_end := float(_get_total_subdivisions())
+	new_end = clamp(new_end, min_end, max_end)
+
+	var new_length := new_end - start
+
+	clip["length"] = new_length
+	fake_clips[resized_clip_index] = clip
+
+	_emit_status_text()
+	queue_redraw()
+
+
+func _end_clip_resize() -> void:
+	if not is_resizing_clip:
+		return
+
+	is_resizing_clip = false
+	resized_clip_index = -1
+	resize_grab_offset = 0.0
+	temporary_snap_override_active = false
+
+	_update_cursor_shape()
+	_emit_status_text()
+	queue_redraw()
 
 func _create_demo_clips() -> void:
 	if not fake_clips.is_empty():
@@ -441,7 +577,7 @@ func _create_demo_clips() -> void:
 			"start": 16.0,
 			"length": 12.5,
 			"name": "Kick Loop",
-			"color": Color(0.30, 0.55, 0.85)
+			"color": Color(0.25, 0.50, 0.80)
 		},
 		{
 			"track": 0,
@@ -610,6 +746,11 @@ func _draw_fake_clips() -> void:
 		else:
 			draw_rect(rect, clip_outline_color, false, 1.0)
 
+		if i == selected_clip_index or i == hovered_resize_clip_index or i == resized_clip_index:
+			var handle_rect := _get_resize_handle_rect(clip)
+			var handle_color := active_resize_handle_color if i == resized_clip_index or i == hovered_resize_clip_index else resize_handle_color
+			draw_rect(handle_rect, handle_color, true)
+
 		if clip.has("name"):
 			var clip_name: String = str(clip["name"])
 			var text_position := Vector2(
@@ -626,6 +767,7 @@ func _draw_fake_clips() -> void:
 				font_size,
 				clip_text_color
 			)
+
 func _update_hovered_clip(position: Vector2) -> void:
 	var new_hovered_clip_index := _get_clip_index_at_position(position)
 
@@ -637,10 +779,11 @@ func _update_hovered_clip(position: Vector2) -> void:
 	queue_redraw()
 
 func _on_timeline_panel_mouse_exited():
-	if is_dragging_clip:
+	if is_dragging_clip or is_resizing_clip:
 		return
 
-	if hovered_clip_index != -1:
+	if hovered_clip_index != -1 or hovered_resize_clip_index != -1:
 		hovered_clip_index = -1
+		hovered_resize_clip_index = -1
 		_update_cursor_shape()
 		queue_redraw()

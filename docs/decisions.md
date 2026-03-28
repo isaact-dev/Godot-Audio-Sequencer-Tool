@@ -124,3 +124,13 @@ The clips are not separate child `Control` nodes, so built-in focus-follow does 
 
 Continuous drag scrolling should be frame-driven rather than mouse-motion-driven so holding the cursor at the edge keeps the viewport moving.
 This requires refactoring current code and adding a delta process function.
+
+## 2026-03-20 — Clip length should have a minimum limit
+
+### Decision
+
+Clips should have a minimum allowed length so they are never resized to zero or a negative value.
+
+### Reasoning
+
+Without a lower limit, resizing could create clips that disappear visually, become impossible to select, or reach negative length states.

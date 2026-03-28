@@ -136,9 +136,8 @@ size_flags_vertical = 3
 focus_mode = 2
 script = ExtResource("2_pn50h")
 track_count = 5
-auto_scroll_edge_threshold = null
-auto_scroll_speed = null
-visible_scroll_margin = null
+min_clip_length = null
+resize_handle_width = null
 
 [connection signal="pressed" from="ToolBar/ButtonNew" to="." method="_on_button_new_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonOpen" to="." method="_on_button_open_pressed"]
