@@ -37,6 +37,8 @@ var clip_outline_color := Color(0.0, 0.0, 0.0, 0.45)
 
 var fake_clips: Array[Dictionary] = []
 
+var track_names: Array[String] = []
+
 var selected_clip_index: int = -1
 var hovered_clip_index: int = -1
 var hovered_resize_clip_index: int = -1
@@ -50,10 +52,12 @@ var is_dragging_clip: bool = false
 var dragged_clip_index: int = -1
 var drag_grab_offset: float = 0.0
 var temporary_snap_override_active: bool = false
+var drag_start_mouse_position: Vector2 = Vector2.ZERO
 
 var is_resizing_clip: bool = false
 var resized_clip_index: int = -1
 var resize_grab_offset: float = 0.0
+var resize_start_mouse_position: Vector2 = Vector2.ZERO
 
 var resize_handle_color := Color(1.0, 1.0, 1.0, 0.18)
 var active_resize_handle_color := Color(1.0, 0.9, 0.35, 0.95)
@@ -61,7 +65,7 @@ var active_resize_handle_color := Color(1.0, 0.9, 0.35, 0.95)
 
 signal status_text_changed(text: String)
 signal selected_clip_changed(clip_index: int, clip_data: Dictionary)
-
+signal tracks_changed(track_names: Array)
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -69,9 +73,11 @@ func _ready() -> void:
 	set_process(true)
 
 	_create_demo_clips()
+	_ensure_track_names_size()
 	_update_timeline_size()
 	call_deferred("_emit_status_text")
 	call_deferred("_emit_selected_clip_changed")
+	call_deferred("_emit_tracks_changed")
 	queue_redraw()
 
 
@@ -102,8 +108,21 @@ func set_bars(value: int) -> void:
 
 func set_track_count(value: int) -> void:
 	track_count = max(1, value)
+	_ensure_track_names_size()
+
+	for i in range(fake_clips.size()):
+		var clip := fake_clips[i]
+		if not clip.has("track"):
+			continue
+		clip["track"] = clamp(int(clip["track"]), 0, track_count - 1)
+		fake_clips[i] = clip
+
 	_update_timeline_size()
+	_emit_status_text()
+	_emit_selected_clip_changed()
+	_emit_tracks_changed()
 	queue_redraw()
+
 
 func _timeline_to_x(position: float) -> float:
 	return position * pixels_per_subdivision
@@ -187,6 +206,22 @@ func _build_status_text() -> String:
 
 func _emit_status_text() -> void:
 	status_text_changed.emit(_build_status_text())
+
+func _create_default_track_name(track_index: int) -> String:
+	return "Track %d" % [track_index + 1]
+
+func _ensure_track_names_size() -> void:
+	while track_names.size() < track_count:
+		track_names.append(_create_default_track_name(track_names.size()))
+
+	while track_names.size() > track_count:
+		track_names.remove_at(track_names.size() - 1)
+
+func get_track_names() -> Array[String]:
+	return track_names.duplicate()
+
+func _emit_tracks_changed() -> void:
+	tracks_changed.emit(get_track_names())
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -299,7 +334,7 @@ func _update_cursor_shape() -> void:
 func _begin_clip_drag(clip_index: int, mouse_position: Vector2) -> void:
 	if clip_index < 0 or clip_index >= fake_clips.size():
 		return
-
+	drag_start_mouse_position = mouse_position
 	var clip := fake_clips[clip_index]
 
 	if not clip.has("start"):
@@ -323,6 +358,9 @@ func _update_clip_drag(mouse_position: Vector2) -> void:
 		return
 
 	if dragged_clip_index < 0 or dragged_clip_index >= fake_clips.size():
+		return
+
+	if mouse_position.distance_to(drag_start_mouse_position) < 4.0:
 		return
 
 	var clip := fake_clips[dragged_clip_index]
@@ -359,6 +397,7 @@ func _end_clip_drag() -> void:
 	is_dragging_clip = false
 	dragged_clip_index = -1
 	drag_grab_offset = 0.0
+	drag_start_mouse_position = Vector2.ZERO
 	temporary_snap_override_active = false
 
 	_update_cursor_shape()
@@ -580,12 +619,11 @@ func _update_hovered_resize_handle(position: Vector2) -> void:
 func _begin_clip_resize(clip_index: int, mouse_position: Vector2) -> void:
 	if clip_index < 0 or clip_index >= fake_clips.size():
 		return
-
+	resize_start_mouse_position = mouse_position
 	var clip := fake_clips[clip_index]
 
 	if not clip.has("start") or not clip.has("length"):
 		return
-
 	var clip_start: float = clip["start"]
 	var clip_length: float = clip["length"]
 	var clip_end := clip_start + clip_length
@@ -612,6 +650,9 @@ func _update_clip_resize(mouse_position: Vector2) -> void:
 		return
 
 	if resized_clip_index < 0 or resized_clip_index >= fake_clips.size():
+		return
+
+	if mouse_position.distance_to(resize_start_mouse_position) < 4.0:
 		return
 
 	var clip := fake_clips[resized_clip_index]
@@ -646,6 +687,7 @@ func _end_clip_resize() -> void:
 	is_resizing_clip = false
 	resized_clip_index = -1
 	resize_grab_offset = 0.0
+	resize_start_mouse_position = Vector2.ZERO
 	temporary_snap_override_active = false
 
 	_update_cursor_shape()
@@ -670,6 +712,91 @@ func clear_selected_clip() -> void:
 	selected_clip_index = -1
 	_emit_status_text()
 	_emit_selected_clip_changed()
+	queue_redraw()
+
+#Track Editing
+func add_track() -> void:
+	track_count += 1
+	track_names.append(_create_default_track_name(track_count - 1))
+	_update_timeline_size()
+	_emit_tracks_changed()
+	queue_redraw()
+
+func remove_track(track_index: int) -> void:
+	if track_count <= 1:
+		return
+	if track_index < 0 or track_index >= track_count:
+		return
+
+	track_names.remove_at(track_index)
+
+	for i in range(fake_clips.size()):
+		var clip := fake_clips[i]
+		if not clip.has("track"):
+			continue
+
+		var clip_track := int(clip["track"])
+
+		if clip_track == track_index:
+			clip["track"] = max(0, track_index - 1)
+		elif clip_track > track_index:
+			clip["track"] = clip_track - 1
+
+		fake_clips[i] = clip
+
+	track_count -= 1
+
+	if selected_clip_index >= 0 and selected_clip_index < fake_clips.size():
+		var selected_clip := fake_clips[selected_clip_index]
+		if selected_clip.has("track"):
+			selected_clip["track"] = clamp(int(selected_clip["track"]), 0, track_count - 1)
+			fake_clips[selected_clip_index] = selected_clip
+
+	_update_timeline_size()
+	_emit_status_text()
+	_emit_selected_clip_changed()
+	_emit_tracks_changed()
+	queue_redraw()
+
+func rename_track(track_index: int, value: String) -> void:
+	if track_index < 0 or track_index >= track_names.size():
+		return
+
+	track_names[track_index] = value.strip_edges()
+	_emit_tracks_changed()
+	queue_redraw()
+
+func move_track(from_index: int, to_index: int) -> void:
+	if from_index < 0 or from_index >= track_count:
+		return
+	if to_index < 0 or to_index >= track_count:
+		return
+	if from_index == to_index:
+		return
+
+	var moved_name := track_names[from_index]
+	track_names.remove_at(from_index)
+	track_names.insert(to_index, moved_name)
+
+	for i in range(fake_clips.size()):
+		var clip := fake_clips[i]
+		if not clip.has("track"):
+			continue
+
+		var clip_track := int(clip["track"])
+
+		if clip_track == from_index:
+			clip["track"] = to_index
+		elif from_index < to_index and clip_track > from_index and clip_track <= to_index:
+			clip["track"] = clip_track - 1
+		elif from_index > to_index and clip_track >= to_index and clip_track < from_index:
+			clip["track"] = clip_track + 1
+
+		fake_clips[i] = clip
+
+	_emit_status_text()
+	_emit_selected_clip_changed()
+	_emit_tracks_changed()
 	queue_redraw()
 
 

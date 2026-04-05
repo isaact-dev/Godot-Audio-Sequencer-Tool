@@ -145,3 +145,17 @@ The dock should use a stable left-side settings host inside the main `HSplitCont
 ### Reasoning
 
 Showing and hiding direct children of the splitter causes the split layout to recalculate and makes the dock width feel inconsistent.
+
+## 2026-04-05 — Track management should be editor-driven with simple deterministic controls
+
+### Decision
+
+Track management in the timeline settings should support adding, deleting, renaming, and reordering tracks.
+Reordering should use simple up/down controls.
+
+### Reasoning
+
+Track settings are part of the editor-facing workflow and should be directly manageable from the dock.
+Adding, deleting, and renaming tracks are core editing actions, and reordering is useful.
+
+Using up/down controls keeps the implementation coherent with the current timeline architecture and makes clip remapping during reorder easier to reason about.

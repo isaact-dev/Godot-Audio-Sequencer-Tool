@@ -10,6 +10,9 @@ extends VBoxContainer
 @onready var start_spin = $HSplitContainer/SettingsHost/ClipSettings/ClipStartSpin
 @onready var length_spin = $HSplitContainer/SettingsHost/ClipSettings/ClipLengthSpin
 @onready var settings_host = $HSplitContainer/SettingsHost
+@onready var bars_slider = $HSplitContainer/SettingsHost/TimelineSettings/Bars/BarsSlider
+@onready var tracks_list = $HSplitContainer/SettingsHost/TimelineSettings/Tracks/ScrollContainer/TracksList
+@onready var track_add_button = $HSplitContainer/SettingsHost/TimelineSettings/Tracks/TrackHeader/TrackAddButton
 
 
 var _updating_clip_settings_ui: bool = false
@@ -33,6 +36,13 @@ func _ready() -> void:
 
 	clip_settings.visible = false
 	timeline_settings.visible = true
+
+
+	bars_slider.min_value = 1
+	bars_slider.step = 1
+	bars_slider.value = timeline.bars
+
+	_refresh_tracks_list(timeline.get_track_names())
 
 	await _lock_settings_host_height()
 	_clear_clip_settings_ui()
@@ -97,6 +107,71 @@ func _lock_settings_host_height() -> void:
 	timeline_settings.visible = timeline_settings_was_visible
 	clip_settings.visible = clip_settings_was_visible
 
+func _on_bars_slider_value_changed(value: float) -> void:
+	timeline.set_bars(int(value))
+
+func _refresh_tracks_list(track_names: Array) -> void:
+	for child in tracks_list.get_children():
+		child.queue_free()
+
+	for i in range(track_names.size()):
+		var row := HBoxContainer.new()
+
+		var index_label := Label.new()
+		index_label.text = "%d" % [i + 1]
+		index_label.custom_minimum_size = Vector2(24, 0)
+
+		var row_name_edit := LineEdit.new()
+		row_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row_name_edit.text = str(track_names[i])
+		row_name_edit.placeholder_text = "Track %d" % [i + 1]
+		row_name_edit.text_submitted.connect(_on_track_name_submitted.bind(i, row_name_edit))
+		row_name_edit.focus_exited.connect(_on_track_name_focus_exited.bind(i, row_name_edit))
+
+		var up_button := Button.new()
+		up_button.text = "↑"
+		up_button.disabled = i == 0
+		up_button.pressed.connect(_on_track_move_up_pressed.bind(i))
+
+		var down_button := Button.new()
+		down_button.text = "↓"
+		down_button.disabled = i == track_names.size() - 1
+		down_button.pressed.connect(_on_track_move_down_pressed.bind(i))
+
+		var delete_button := Button.new()
+		delete_button.text = "x"
+		delete_button.disabled = track_names.size() <= 1
+		delete_button.pressed.connect(_on_track_delete_pressed.bind(i))
+
+		row.add_child(index_label)
+		row.add_child(row_name_edit)
+		row.add_child(up_button)
+		row.add_child(down_button)
+		row.add_child(delete_button)
+
+		tracks_list.add_child(row)
+
+func _on_timeline_control_tracks_changed(track_names: Array) -> void:
+	track_spin.max_value = max(0, timeline.track_count - 1)
+	_refresh_tracks_list(track_names)
+
+func _on_track_add_button_pressed() -> void:
+	timeline.add_track()
+
+func _on_track_delete_pressed(track_index: int) -> void:
+	timeline.remove_track(track_index)
+
+func _on_track_move_up_pressed(track_index: int) -> void:
+	timeline.move_track(track_index, track_index - 1)
+
+func _on_track_move_down_pressed(track_index: int) -> void:
+	timeline.move_track(track_index, track_index + 1)
+
+func _on_track_name_submitted(_text: String, track_index: int, line_edit: LineEdit) -> void:
+	timeline.rename_track(track_index, line_edit.text)
+
+func _on_track_name_focus_exited(track_index: int, line_edit: LineEdit) -> void:
+	timeline.rename_track(track_index, line_edit.text)
 
 func _on_button_new_pressed():
 	print("new")
