@@ -62,6 +62,9 @@ var resize_start_mouse_position: Vector2 = Vector2.ZERO
 var resize_handle_color := Color(1.0, 1.0, 1.0, 0.18)
 var active_resize_handle_color := Color(1.0, 0.9, 0.35, 0.95)
 
+var undo_stack: Array[Dictionary] = []
+var drag_original_clip_index: int = -1
+var drag_original_clip_data: Dictionary
 
 signal status_text_changed(text: String)
 signal selected_clip_changed(clip_index: int, clip_data: Dictionary)
@@ -100,11 +103,13 @@ func _get_bar_width() -> float:
 func _update_timeline_size() -> void:
 	custom_minimum_size = Vector2(_get_total_width(), _get_total_height())
 
-
 func set_bars(value: int) -> void:
 	bars = max(1, value)
 	_update_timeline_size()
+	_emit_status_text()
+	_emit_selected_clip_changed()
 	queue_redraw()
+
 
 func set_track_count(value: int) -> void:
 	track_count = max(1, value)
@@ -223,6 +228,49 @@ func get_track_names() -> Array[String]:
 func _emit_tracks_changed() -> void:
 	tracks_changed.emit(get_track_names())
 
+func _push_undo_entry(entry: Dictionary) -> void:
+	undo_stack.append(entry)
+
+func undo_last_action() -> void:
+	if undo_stack.is_empty():
+		return
+
+	var entry := undo_stack.pop_back()
+
+	if entry.is_empty() or not entry.has("type"):
+		return
+
+	match str(entry["type"]):
+		"delete_clip":
+			if not entry.has("clip_index") or not entry.has("clip_data"):
+				return
+
+			var clip_index := int(entry["clip_index"])
+			var clip_data: Dictionary = entry["clip_data"]
+
+			clip_index = clamp(clip_index, 0, fake_clips.size())
+			fake_clips.insert(clip_index, clip_data.duplicate(true))
+			selected_clip_index = clip_index
+
+		"move_clip":
+			if not entry.has("clip_index") or not entry.has("before"):
+				return
+
+			var clip_index := int(entry["clip_index"])
+			if clip_index < 0 or clip_index >= fake_clips.size():
+				return
+
+			var before_clip: Dictionary = entry["before"]
+			fake_clips[clip_index] = before_clip.duplicate(true)
+			selected_clip_index = clip_index
+
+		_:
+			return
+
+	_emit_status_text()
+	_emit_selected_clip_changed()
+	queue_redraw()
+
 
 func _gui_input(event: InputEvent) -> void:
 	_update_temporary_snap_override_from_event(event)
@@ -248,6 +296,18 @@ func _gui_input(event: InputEvent) -> void:
 
 				accept_event()
 				return
+
+			elif key_event.pressed:
+				if key_event.keycode == KEY_DELETE or key_event.keycode == KEY_BACKSPACE:
+					delete_selected_clip()
+					accept_event()
+					return
+
+			elif key_event.ctrl_pressed and key_event.keycode == KEY_U and not key_event.echo:
+				undo_last_action()
+				accept_event()
+				return
+
 
 
 	if event is InputEventMouseMotion:
@@ -340,6 +400,10 @@ func _begin_clip_drag(clip_index: int, mouse_position: Vector2) -> void:
 	if not clip.has("start"):
 		return
 
+	drag_original_clip_index = clip_index
+	drag_original_clip_data = clip.duplicate(true)
+
+
 	var clip_start: float = clip["start"]
 	var mouse_timeline_position := _x_to_timeline(mouse_position.x)
 
@@ -389,17 +453,32 @@ func _update_clip_drag(mouse_position: Vector2) -> void:
 
 
 
-
 func _end_clip_drag() -> void:
 	if not is_dragging_clip:
 		return
+
+	if drag_original_clip_index >= 0 and drag_original_clip_index < fake_clips.size() and not drag_original_clip_data.is_empty():
+		var current_clip := fake_clips[drag_original_clip_index]
+
+		var original_start := float(drag_original_clip_data.get("start", 0.0))
+		var current_start := float(current_clip.get("start", 0.0))
+		var original_track := int(drag_original_clip_data.get("track", 0))
+		var current_track := int(current_clip.get("track", 0))
+
+		if original_start != current_start or original_track != current_track:
+			_push_undo_entry({
+				"type": "move_clip",
+				"clip_index": drag_original_clip_index,
+				"before": drag_original_clip_data.duplicate(true)
+			})
 
 	is_dragging_clip = false
 	dragged_clip_index = -1
 	drag_grab_offset = 0.0
 	drag_start_mouse_position = Vector2.ZERO
+	drag_original_clip_index = -1
+	drag_original_clip_data = {}
 	temporary_snap_override_active = false
-
 	_update_cursor_shape()
 	_emit_status_text()
 	_emit_selected_clip_changed()
@@ -408,6 +487,82 @@ func _end_clip_drag() -> void:
 
 func _is_snap_active() -> bool:
 	return snap_enabled != temporary_snap_override_active
+
+func add_clip() -> void:
+	var default_length := max(4.0, min_clip_length)
+	var total_subdivisions := float(_get_total_subdivisions())
+
+	if total_subdivisions <= 0.0:
+		return
+
+	default_length = min(default_length, total_subdivisions)
+
+	var new_track := 0
+	var new_start := 0.0
+
+	if selected_clip_index >= 0 and selected_clip_index < fake_clips.size():
+		var selected_clip := fake_clips[selected_clip_index]
+
+		if selected_clip.has("track"):
+			new_track = clamp(int(selected_clip["track"]), 0, track_count - 1)
+
+		if selected_clip.has("start") and selected_clip.has("length"):
+			new_start = float(selected_clip["start"]) + float(selected_clip["length"])
+
+	new_start = _snap_timeline_position(new_start)
+
+	var max_start := max(0.0, total_subdivisions - default_length)
+	new_start = clamp(new_start, 0.0, max_start)
+
+	var new_clip := {
+		"track": new_track,
+		"start": new_start,
+		"length": default_length,
+		"name": "New Clip",
+		"color": Color(0.35, 0.55, 0.85)
+	}
+
+	fake_clips.append(new_clip)
+	selected_clip_index = fake_clips.size() - 1
+
+	_emit_status_text()
+	_emit_selected_clip_changed()
+	queue_redraw()
+
+
+func delete_selected_clip() -> void:
+	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
+		return
+
+	var removed_clip := fake_clips[selected_clip_index].duplicate(true)
+
+	_push_undo_entry({
+		"type": "delete_clip",
+		"clip_index": selected_clip_index,
+		"clip_data": removed_clip
+	})
+
+	fake_clips.remove_at(selected_clip_index)
+
+	selected_clip_index = -1
+	hovered_clip_index = -1
+	hovered_resize_clip_index = -1
+
+	is_dragging_clip = false
+	dragged_clip_index = -1
+	drag_grab_offset = 0.0
+	drag_start_mouse_position = Vector2.ZERO
+	drag_original_clip_index = -1
+	drag_original_clip_data = {}
+
+	is_resizing_clip = false
+	resized_clip_index = -1
+	resize_grab_offset = 0.0
+	resize_start_mouse_position = Vector2.ZERO
+
+	_emit_status_text()
+	_emit_selected_clip_changed()
+	queue_redraw()
 
 
 func _nudge_selected_clip(amount: float, use_snap: bool) -> void:

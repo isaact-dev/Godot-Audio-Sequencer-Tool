@@ -48,6 +48,14 @@ size_flags_horizontal = 3
 size_flags_vertical = 0
 text = "||"
 
+[node name="ButtonAddClip" type="Button" parent="ToolBar" unique_id=883048078]
+layout_mode = 2
+text = "Add Clip"
+
+[node name="ButtonDeleteClip" type="Button" parent="ToolBar" unique_id=811877024]
+layout_mode = 2
+text = "Delete Clip"
+
 [node name="StatusLabel" type="Label" parent="." unique_id=1230435216]
 layout_mode = 2
 text = "Selected: None | Start: - | Length: - | Snap: On"
@@ -55,17 +63,20 @@ text = "Selected: None | Start: - | Length: - | Snap: On"
 [node name="HSplitContainer" type="HSplitContainer" parent="." unique_id=675055457]
 layout_mode = 2
 size_flags_vertical = 3
-split_offsets = PackedInt32Array(150)
-split_offset = 150
+split_offsets = PackedInt32Array(240)
+split_offset = 240
 
-[node name="SettingsHost" type="VBoxContainer" parent="HSplitContainer" unique_id=1383370102]
-custom_minimum_size = Vector2(180, 20)
+[node name="SettingsHost" type="ScrollContainer" parent="HSplitContainer" unique_id=604947903]
+custom_minimum_size = Vector2(180, 0)
 layout_mode = 2
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 2
 
 [node name="ClipSettings" type="VBoxContainer" parent="HSplitContainer/SettingsHost" unique_id=931133608]
 visible = false
-custom_minimum_size = Vector2(210, 0)
+custom_minimum_size = Vector2(180, 0)
 layout_mode = 2
+size_flags_horizontal = 3
 
 [node name="HBoxContainer" type="HBoxContainer" parent="HSplitContainer/SettingsHost/ClipSettings" unique_id=1624691482]
 layout_mode = 2
@@ -92,7 +103,7 @@ text = "Track"
 
 [node name="ClipTrackSpin" type="SpinBox" parent="HSplitContainer/SettingsHost/ClipSettings" unique_id=1371885533]
 layout_mode = 2
-max_value = 4.0
+max_value = 6.0
 
 [node name="ClipStartLabel" type="Label" parent="HSplitContainer/SettingsHost/ClipSettings" unique_id=961403422]
 layout_mode = 2
@@ -108,12 +119,12 @@ text = "Length"
 
 [node name="ClipLengthSpin" type="SpinBox" parent="HSplitContainer/SettingsHost/ClipSettings" unique_id=1714535672]
 layout_mode = 2
-min_value = 0.8
+min_value = 0.9
 step = 0.1
 value = 0.9
 
 [node name="TimelineSettings" type="VBoxContainer" parent="HSplitContainer/SettingsHost" unique_id=1041869853]
-custom_minimum_size = Vector2(210, 0)
+custom_minimum_size = Vector2(180, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 
@@ -145,12 +156,14 @@ text = "Bars"
 
 [node name="BarsSlider" type="SpinBox" parent="HSplitContainer/SettingsHost/TimelineSettings/Bars" unique_id=1398213056]
 layout_mode = 2
-value = 10.0
+min_value = 1.0
+value = 8.0
 rounded = true
 
 [node name="Tracks" type="VBoxContainer" parent="HSplitContainer/SettingsHost/TimelineSettings" unique_id=1628164027]
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 3
 
 [node name="TrackHeader" type="HBoxContainer" parent="HSplitContainer/SettingsHost/TimelineSettings/Tracks" unique_id=784488565]
 layout_mode = 2
@@ -167,21 +180,24 @@ size_flags_vertical = 0
 
 [node name="TrackAddButton" type="Button" parent="HSplitContainer/SettingsHost/TimelineSettings/Tracks/TrackHeader" unique_id=113314942]
 layout_mode = 2
+size_flags_horizontal = 8
 size_flags_vertical = 0
 text = "+"
 
 [node name="ScrollContainer" type="ScrollContainer" parent="HSplitContainer/SettingsHost/TimelineSettings/Tracks" unique_id=662564042]
-custom_minimum_size = Vector2(0, 120)
+custom_minimum_size = Vector2(0, 300)
 layout_mode = 2
 size_flags_vertical = 3
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 2
 
 [node name="TracksList" type="VBoxContainer" parent="HSplitContainer/SettingsHost/TimelineSettings/Tracks/ScrollContainer" unique_id=42280444]
-custom_minimum_size = Vector2(0, 120)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
 [node name="TimelineBox" type="VBoxContainer" parent="HSplitContainer" unique_id=1336411594]
+custom_minimum_size = Vector2(0, 80)
 layout_mode = 2
 size_flags_horizontal = 3
 
@@ -197,7 +213,7 @@ size_flags_vertical = 3
 layout_mode = 2
 
 [node name="TimelineControl" type="Control" parent="HSplitContainer/TimelineBox/TimelinePanel/ScrollContainer" unique_id=890179304]
-custom_minimum_size = Vector2(3072, 0)
+custom_minimum_size = Vector2(1728, 368)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
@@ -206,6 +222,8 @@ script = ExtResource("2_pn50h")
 beats_per_bar = 3
 subdivisions_per_beat = 3
 track_count = 7
+auto_scroll_edge_threshold = 12.0
+auto_scroll_speed = 12.0
 min_clip_length = 0.9
 
 [connection signal="pressed" from="ToolBar/ButtonNew" to="." method="_on_button_new_pressed"]
@@ -213,6 +231,8 @@ min_clip_length = 0.9
 [connection signal="pressed" from="ToolBar/ButtonSave" to="." method="_on_button_save_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonPlay" to="." method="_on_button_play_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonPause" to="." method="_on_button_pause_pressed"]
+[connection signal="pressed" from="ToolBar/ButtonAddClip" to="." method="_on_button_add_clip_pressed"]
+[connection signal="pressed" from="ToolBar/ButtonDeleteClip" to="." method="_on_button_delete_clip_pressed"]
 [connection signal="pressed" from="HSplitContainer/SettingsHost/ClipSettings/HBoxContainer/ClipCloseButton" to="." method="_on_clip_close_button_pressed"]
 [connection signal="text_changed" from="HSplitContainer/SettingsHost/ClipSettings/ClipNameEdit" to="." method="_on_clip_name_edit_text_changed"]
 [connection signal="value_changed" from="HSplitContainer/SettingsHost/ClipSettings/ClipTrackSpin" to="." method="_on_clip_track_spin_value_changed"]

@@ -13,7 +13,7 @@ extends VBoxContainer
 @onready var bars_slider = $HSplitContainer/SettingsHost/TimelineSettings/Bars/BarsSlider
 @onready var tracks_list = $HSplitContainer/SettingsHost/TimelineSettings/Tracks/ScrollContainer/TracksList
 @onready var track_add_button = $HSplitContainer/SettingsHost/TimelineSettings/Tracks/TrackHeader/TrackAddButton
-
+@onready var delete_clip_button = $HSplitContainer/SettingsHost/ClipSettings/ClipDeleteButton
 
 var _updating_clip_settings_ui: bool = false
 
@@ -23,6 +23,8 @@ func _ready() -> void:
 		return
 
 	status_label.text = timeline._build_status_text()
+
+	delete_clip_button.disabled = true
 
 	track_spin.min_value = 0
 	track_spin.max_value = max(0, timeline.track_count - 1)
@@ -43,14 +45,15 @@ func _ready() -> void:
 	bars_slider.value = timeline.bars
 
 	_refresh_tracks_list(timeline.get_track_names())
-
-	await _lock_settings_host_height()
 	_clear_clip_settings_ui()
 
 func _clear_clip_settings_ui() -> void:
 	_updating_clip_settings_ui = true
 	name_edit.text = ""
 	track_spin.value = track_spin.min_value
+	start_spin.value = start_spin.min_value
+	length_spin.value = length_spin.min_value
+	delete_clip_button.disabled = true
 	_updating_clip_settings_ui = false
 
 
@@ -63,6 +66,7 @@ func _sync_clip_settings_ui(clip_index: int, clip_data: Dictionary) -> void:
 		start_spin.value = start_spin.min_value
 		length_spin.value = length_spin.min_value
 	else:
+		delete_clip_button.disabled = false
 		var clip_length := float(clip_data.get("length", timeline.min_clip_length))
 		var max_start := max(0.0, float(timeline.bars * timeline.beats_per_bar * timeline.subdivisions_per_beat) - clip_length)
 		var clip_start := float(clip_data.get("start", 0.0))
@@ -91,21 +95,11 @@ func _sync_clip_settings_ui(clip_index: int, clip_data: Dictionary) -> void:
 	_updating_clip_settings_ui = false
 
 
-func _lock_settings_host_height() -> void:
-	var timeline_settings_was_visible := timeline_settings.visible
-	var clip_settings_was_visible := clip_settings.visible
+func _on_button_add_clip_pressed() -> void:
+	timeline.add_clip()
 
-	timeline_settings.visible = true
-	clip_settings.visible = true
-
-	await get_tree().process_frame
-
-	var timeline_height := timeline_settings.get_combined_minimum_size().y
-	var clip_height := clip_settings.get_combined_minimum_size().y
-	settings_host.custom_minimum_size.y = max(timeline_height, clip_height)
-
-	timeline_settings.visible = timeline_settings_was_visible
-	clip_settings.visible = clip_settings_was_visible
+func _on_button_delete_clip_pressed() -> void:
+	timeline.delete_selected_clip()
 
 func _on_bars_slider_value_changed(value: float) -> void:
 	timeline.set_bars(int(value))
@@ -119,8 +113,9 @@ func _refresh_tracks_list(track_names: Array) -> void:
 
 		var index_label := Label.new()
 		index_label.text = "%d" % [i + 1]
-		index_label.custom_minimum_size = Vector2(24, 0)
-
+		index_label.custom_minimum_size = Vector2(36, 0)
+		index_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		index_label.size_flags_horizontal = Control.SIZE_SHRINK_END
 		var row_name_edit := LineEdit.new()
 		row_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row_name_edit.text = str(track_names[i])
