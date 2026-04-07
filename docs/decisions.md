@@ -159,3 +159,9 @@ Track settings are part of the editor-facing workflow and should be directly man
 Adding, deleting, and renaming tracks are core editing actions, and reordering is useful.
 
 Using up/down controls keeps the implementation coherent with the current timeline architecture and makes clip remapping during reorder easier to reason about.
+
+## 2026-04-07 — Undo should be registered through EditorUndoRedoManager
+
+### Decision
+
+Undo for delete and move should be registered through EditorUndoRedoManager from the plugin layer instead of a custom function

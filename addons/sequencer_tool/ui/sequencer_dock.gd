@@ -13,7 +13,9 @@ extends VBoxContainer
 @onready var bars_slider = $HSplitContainer/SettingsHost/TimelineSettings/Bars/BarsSlider
 @onready var tracks_list = $HSplitContainer/SettingsHost/TimelineSettings/Tracks/ScrollContainer/TracksList
 @onready var track_add_button = $HSplitContainer/SettingsHost/TimelineSettings/Tracks/TrackHeader/TrackAddButton
-@onready var delete_clip_button = $HSplitContainer/SettingsHost/ClipSettings/ClipDeleteButton
+@onready var delete_clip_button = $ToolBar/ButtonDeleteClip
+
+var editor_undo_redo: EditorUndoRedoManager = null
 
 var _updating_clip_settings_ui: bool = false
 
@@ -21,6 +23,10 @@ func _ready() -> void:
 	if timeline == null:
 		push_error("TimelineControl not found in sequencer_dock.gd")
 		return
+
+	if editor_undo_redo != null:
+		timeline.set_editor_undo_redo(editor_undo_redo)
+
 
 	status_label.text = timeline._build_status_text()
 
@@ -46,6 +52,11 @@ func _ready() -> void:
 
 	_refresh_tracks_list(timeline.get_track_names())
 	_clear_clip_settings_ui()
+
+func set_editor_undo_redo(value: EditorUndoRedoManager) -> void:
+	editor_undo_redo = value
+	if timeline != null:
+		timeline.set_editor_undo_redo(value)
 
 func _clear_clip_settings_ui() -> void:
 	_updating_clip_settings_ui = true

@@ -54,6 +54,7 @@ text = "Add Clip"
 
 [node name="ButtonDeleteClip" type="Button" parent="ToolBar" unique_id=811877024]
 layout_mode = 2
+disabled = true
 text = "Delete Clip"
 
 [node name="StatusLabel" type="Label" parent="." unique_id=1230435216]
