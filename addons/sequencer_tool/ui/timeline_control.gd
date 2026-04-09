@@ -38,6 +38,7 @@ var clip_outline_color := Color(0.0, 0.0, 0.0, 0.45)
 var fake_clips: Array[Dictionary] = []
 
 var track_names: Array[String] = []
+var track_colors: Array[Color] = []
 
 var selected_clip_index: int = -1
 var hovered_clip_index: int = -1
@@ -114,6 +115,9 @@ func set_bars(value: int) -> void:
 	_emit_selected_clip_changed()
 	queue_redraw()
 
+func _generate_track_color(track_index: int) -> Color:
+	var hue := fmod(float(track_index) * 0.17, 1.0)
+	return Color.from_hsv(hue, 0.85, 0.5)
 
 func set_track_count(value: int) -> void:
 	track_count = max(1, value)
@@ -222,15 +226,109 @@ func _create_default_track_name(track_index: int) -> String:
 func _ensure_track_names_size() -> void:
 	while track_names.size() < track_count:
 		track_names.append(_create_default_track_name(track_names.size()))
+		track_colors.append(_generate_track_color(track_colors.size()))
 
 	while track_names.size() > track_count:
 		track_names.remove_at(track_names.size() - 1)
+		track_colors.remove_at(track_colors.size() - 1)
 
 func get_track_names() -> Array[String]:
 	return track_names.duplicate()
 
 func _emit_tracks_changed() -> void:
 	tracks_changed.emit(get_track_names())
+
+func _reset_selection_and_interaction_state() -> void:
+	selected_clip_index = -1
+	hovered_clip_index = -1
+	hovered_resize_clip_index = -1
+
+	is_dragging_clip = false
+	dragged_clip_index = -1
+	drag_grab_offset = 0.0
+	drag_start_mouse_position = Vector2.ZERO
+	drag_original_clip_index = -1
+	drag_original_clip_data = {}
+
+	is_resizing_clip = false
+	resized_clip_index = -1
+	resize_grab_offset = 0.0
+	resize_start_mouse_position = Vector2.ZERO
+
+func get_sequence_data() -> Dictionary:
+	var serialized_clips: Array[Dictionary] = []
+
+	for clip in fake_clips:
+		var serialized_clip: Dictionary = {
+			"track": int(clip.get("track", 0)),
+			"start": float(clip.get("start", 0.0)),
+			"length": float(clip.get("length", min_clip_length)),
+			"name": str(clip.get("name", "Clip"))
+		}
+
+		serialized_clips.append(serialized_clip)
+
+	return {
+		"bars": bars,
+		"beats_per_bar": beats_per_bar,
+		"subdivisions_per_beat": subdivisions_per_beat,
+		"track_count": track_count,
+		"track_names": track_names.duplicate(),
+		"clips": serialized_clips
+	}
+
+func load_sequence_data(data: Dictionary) -> void:
+	bars = max(1, int(data.get("bars", bars)))
+	beats_per_bar = max(1, int(data.get("beats_per_bar", beats_per_bar)))
+	subdivisions_per_beat = max(1, int(data.get("subdivisions_per_beat", subdivisions_per_beat)))
+	track_count = max(1, int(data.get("track_count", track_count)))
+
+	track_names.clear()
+
+	var loaded_track_names = data.get("track_names", [])
+	if loaded_track_names is Array:
+		for track_name in loaded_track_names:
+			track_names.append(str(track_name))
+
+	_ensure_track_names_size()
+
+	fake_clips.clear()
+
+	var loaded_clips = data.get("clips", [])
+	if loaded_clips is Array:
+		for loaded_clip in loaded_clips:
+			if not loaded_clip is Dictionary:
+				continue
+
+			var clip_track := clamp(int(loaded_clip.get("track", 0)), 0, track_count - 1)
+			var clip_start := max(0.0, float(loaded_clip.get("start", 0.0)))
+			var clip_length := max(min_clip_length, float(loaded_clip.get("length", min_clip_length)))
+			var max_length := max(min_clip_length, float(_get_total_subdivisions()) - clip_start)
+
+			var clip: Dictionary = {
+				"track": clip_track,
+				"start": clip_start,
+				"length": clamp(clip_length, min_clip_length, max_length),
+				"name": str(loaded_clip.get("name", "Clip"))
+			}
+			fake_clips.append(clip)
+
+	_reset_selection_and_interaction_state()
+	_update_timeline_size()
+	_emit_status_text()
+	_emit_selected_clip_changed()
+	_emit_tracks_changed()
+	queue_redraw()
+
+func create_new_sequence(new_bars: int, new_beats_per_bar: int, new_subdivisions_per_beat: int) -> void:
+	load_sequence_data({
+		"bars": max(1, new_bars),
+		"beats_per_bar": max(1, new_beats_per_bar),
+		"subdivisions_per_beat": max(1, new_subdivisions_per_beat),
+		"track_count": track_count,
+		"track_names": [],
+		"clips": []
+	})
 
 func _gui_input(event: InputEvent) -> void:
 	_update_temporary_snap_override_from_event(event)
@@ -481,7 +579,6 @@ func add_clip() -> void:
 		"start": new_start,
 		"length": default_length,
 		"name": "New Clip",
-		"color": Color(0.35, 0.55, 0.85)
 	}
 
 	fake_clips.append(new_clip)
@@ -1105,7 +1202,7 @@ func _draw_fake_clips() -> void:
 		if rect.size.x <= 1.0 or rect.size.y <= 1.0:
 			continue
 
-		var color: Color = clip.get("color", Color(0.35, 0.55, 0.85))
+		var color: Color = track_colors[track_index]
 
 		draw_rect(rect, color, true)
 

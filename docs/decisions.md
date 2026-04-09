@@ -165,3 +165,9 @@ Using up/down controls keeps the implementation coherent with the current timeli
 ### Decision
 
 Undo for delete and move should be registered through EditorUndoRedoManager from the plugin layer instead of a custom function
+
+## 2026-04-09 — Clip colors are derived exclusively from track colors
+
+### Decision
+
+Clip colors are derived exclusively from track colors. This eliminates per-clip color state, reducing save size, and enforcing a cleaner, deterministic visual model.

@@ -1,0 +1,41 @@
+{
+	"bars": 24,
+	"beats_per_bar": 6,
+	"clips": [
+		{
+			"length": 4.0,
+			"name": "red",
+			"start": 0.0,
+			"track": 0
+		},
+		{
+			"length": 14.0,
+			"name": "red2",
+			"start": 7.0,
+			"track": 0
+		},
+		{
+			"length": 4.0,
+			"name": "gre",
+			"start": 21.0,
+			"track": 2
+		},
+		{
+			"length": 4.0,
+			"name": "ye",
+			"start": 12.0,
+			"track": 1
+		}
+	],
+	"subdivisions_per_beat": 4,
+	"track_count": 7,
+	"track_names": [
+		"Track 1",
+		"Track 2",
+		"Track 3",
+		"Track 4",
+		"Track 5",
+		"Track 6",
+		"Track 7"
+	]
+}

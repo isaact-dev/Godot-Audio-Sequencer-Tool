@@ -14,8 +14,16 @@ extends VBoxContainer
 @onready var tracks_list = $HSplitContainer/SettingsHost/TimelineSettings/Tracks/ScrollContainer/TracksList
 @onready var track_add_button = $HSplitContainer/SettingsHost/TimelineSettings/Tracks/TrackHeader/TrackAddButton
 @onready var delete_clip_button = $ToolBar/ButtonDeleteClip
+@onready var new_sequence_dialog = $NewSequenceDialog
+@onready var new_bars_spin = $NewSequenceDialog/MarginContainer/VBoxContainer/NewBarsSpin
+@onready var new_beats_spin = $NewSequenceDialog/MarginContainer/VBoxContainer/NewBeatsSpin
+@onready var new_subdivisions_spin = $NewSequenceDialog/MarginContainer/VBoxContainer/NewSubdivisionsSpin
+@onready var open_sequence_dialog = $OpenSequenceDialog
+@onready var save_sequence_dialog = $SaveSequenceDialog
 
 var editor_undo_redo: EditorUndoRedoManager = null
+
+var current_sequence_path: String = ""
 
 var _updating_clip_settings_ui: bool = false
 
@@ -52,6 +60,28 @@ func _ready() -> void:
 
 	_refresh_tracks_list(timeline.get_track_names())
 	_clear_clip_settings_ui()
+	new_bars_spin.min_value = 1
+	new_bars_spin.step = 1
+	new_bars_spin.rounded = true
+
+	new_beats_spin.min_value = 1
+	new_beats_spin.step = 1
+	new_beats_spin.rounded = true
+
+	new_subdivisions_spin.min_value = 1
+	new_subdivisions_spin.step = 1
+	new_subdivisions_spin.rounded = true
+
+	new_sequence_dialog.get_ok_button().text = "Create"
+
+	open_sequence_dialog.access = FileDialog.ACCESS_RESOURCES
+	open_sequence_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	open_sequence_dialog.filters = PackedStringArray(["*.json ; Sequencer Tool JSON"])
+
+	save_sequence_dialog.access = FileDialog.ACCESS_RESOURCES
+	save_sequence_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+	save_sequence_dialog.filters = PackedStringArray(["*.json ; Sequencer Tool JSON"])
+	save_sequence_dialog.current_file = "sequence.json"
 
 func set_editor_undo_redo(value: EditorUndoRedoManager) -> void:
 	editor_undo_redo = value
@@ -66,7 +96,6 @@ func _clear_clip_settings_ui() -> void:
 	length_spin.value = length_spin.min_value
 	delete_clip_button.disabled = true
 	_updating_clip_settings_ui = false
-
 
 func _sync_clip_settings_ui(clip_index: int, clip_data: Dictionary) -> void:
 	_updating_clip_settings_ui = true
@@ -105,6 +134,51 @@ func _sync_clip_settings_ui(clip_index: int, clip_data: Dictionary) -> void:
 
 	_updating_clip_settings_ui = false
 
+func _sync_timeline_settings_ui() -> void:
+	if bars_slider.value != timeline.bars:
+		bars_slider.value = timeline.bars
+func _save_sequence_to_path(path: String) -> void:
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		push_error("Failed to open file for saving: %s" % path)
+		return
+
+	var sequence_data = timeline.get_sequence_data()
+	file.store_string(JSON.stringify(sequence_data, "\t"))
+	current_sequence_path = path
+
+func _load_sequence_from_path(path: String) -> void:
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		push_error("Failed to open file for loading: %s" % path)
+		return
+
+	var content := file.get_as_text()
+	var parsed = JSON.parse_string(content)
+
+	if not parsed is Dictionary:
+		push_error("Invalid sequence file: %s" % path)
+		return
+
+	timeline.load_sequence_data(parsed)
+	current_sequence_path = path
+	_sync_timeline_settings_ui()
+
+func _on_new_sequence_dialog_confirmed() -> void:
+	timeline.create_new_sequence(
+		int(new_bars_spin.value),
+		int(new_beats_spin.value),
+		int(new_subdivisions_spin.value)
+	)
+
+	current_sequence_path = ""
+	_sync_timeline_settings_ui()
+
+func _on_open_sequence_dialog_file_selected(path: String) -> void:
+	_load_sequence_from_path(path)
+
+func _on_save_sequence_dialog_file_selected(path: String) -> void:
+	_save_sequence_to_path(path)
 
 func _on_button_add_clip_pressed() -> void:
 	timeline.add_clip()
@@ -180,13 +254,22 @@ func _on_track_name_focus_exited(track_index: int, line_edit: LineEdit) -> void:
 	timeline.rename_track(track_index, line_edit.text)
 
 func _on_button_new_pressed():
-	print("new")
+	new_bars_spin.value = timeline.bars
+	new_beats_spin.value = timeline.beats_per_bar
+	new_subdivisions_spin.value = timeline.subdivisions_per_beat
+	new_sequence_dialog.popup_centered()
+
 
 func _on_button_open_pressed():
-	print("open")
+	open_sequence_dialog.popup_centered_ratio()
 
 func _on_button_save_pressed():
-	print("save")
+	if current_sequence_path.is_empty():
+		save_sequence_dialog.popup_centered_ratio()
+		return
+
+	_save_sequence_to_path(current_sequence_path)
+
 
 func _on_button_play_pressed():
 	print("play")
