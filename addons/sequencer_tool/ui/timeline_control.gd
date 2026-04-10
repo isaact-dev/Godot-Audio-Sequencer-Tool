@@ -19,6 +19,7 @@ class_name TimelineControl
 @export var visible_scroll_margin: float = 24.0
 @export var min_clip_length: float = 0.85
 @export var resize_handle_width: float = 10.0
+@export var track_label_width: float = 70.0
 
 var background_color := Color(0.10, 0.10, 0.12)
 var header_color := Color(0.16, 0.16, 0.20)
@@ -34,6 +35,15 @@ var bar_line_color := Color(0.55, 0.55, 0.65)
 var bar_number_color := Color(0.92, 0.92, 0.96)
 var clip_text_color := Color(1.0, 1.0, 1.0)
 var clip_outline_color := Color(0.0, 0.0, 0.0, 0.45)
+
+var track_color_palette: Array[Color] = [
+	Color(0.30, 0.40, 0.62),
+	Color(0.42, 0.34, 0.60),
+	Color(0.58, 0.38, 0.24),
+	Color(0.26, 0.46, 0.58),
+	Color(0.50, 0.32, 0.52),
+	Color(0.56, 0.42, 0.28)
+]
 
 var fake_clips: Array[Dictionary] = []
 
@@ -97,7 +107,7 @@ func _get_total_subdivisions() -> int:
 	return bars * beats_per_bar * subdivisions_per_beat
 
 func _get_total_width() -> float:
-	return _get_total_subdivisions() * pixels_per_subdivision
+	return track_label_width + (_get_total_subdivisions() * pixels_per_subdivision)
 
 func _get_total_height() -> float:
 	return header_height + (track_count * lane_height)
@@ -115,9 +125,13 @@ func set_bars(value: int) -> void:
 	_emit_selected_clip_changed()
 	queue_redraw()
 
-func _generate_track_color(track_index: int) -> Color:
-	var hue := fmod(float(track_index) * 0.17, 1.0)
-	return Color.from_hsv(hue, 0.85, 0.5)
+func _get_track_color(track_index: int) -> Color:
+	if track_color_palette.is_empty():
+		return Color(0.0, 1.0, 0.0, 1.0)
+
+	return track_color_palette[track_index % track_color_palette.size()]
+
+
 
 func set_track_count(value: int) -> void:
 	track_count = max(1, value)
@@ -138,10 +152,10 @@ func set_track_count(value: int) -> void:
 
 
 func _timeline_to_x(position: float) -> float:
-	return position * pixels_per_subdivision
+	return track_label_width + (position * pixels_per_subdivision)
 
 func _x_to_timeline(x: float) -> float:
-	return x / pixels_per_subdivision
+	return max(0.0, (x - track_label_width) / pixels_per_subdivision)
 
 func _y_to_track_index(y: float) -> int:
 	var local_y := y - header_height
@@ -226,7 +240,7 @@ func _create_default_track_name(track_index: int) -> String:
 func _ensure_track_names_size() -> void:
 	while track_names.size() < track_count:
 		track_names.append(_create_default_track_name(track_names.size()))
-		track_colors.append(_generate_track_color(track_colors.size()))
+
 
 	while track_names.size() > track_count:
 		track_names.remove_at(track_names.size() - 1)
@@ -1103,6 +1117,7 @@ func _draw() -> void:
 	_draw_background()
 	_draw_header()
 	_draw_track_lanes()
+	_draw_track_names()
 	_draw_vertical_grid()
 	_draw_fake_clips()
 	_draw_bar_numbers()
@@ -1116,6 +1131,12 @@ func _draw_header() -> void:
 	draw_line(
 		Vector2(0, header_height),
 		Vector2(size.x, header_height),
+		header_separator_color,
+		1.0
+	)
+	draw_line(
+		Vector2(track_label_width, 0),
+		Vector2(track_label_width, size.y),
 		header_separator_color,
 		1.0
 	)
@@ -1138,8 +1159,7 @@ func _draw_vertical_grid() -> void:
 	var total_subdivisions := _get_total_subdivisions()
 
 	for i in range(total_subdivisions + 1):
-		var x := i * pixels_per_subdivision
-
+		var x := track_label_width + (i * pixels_per_subdivision)
 		var color := subdivision_line_color
 		var width := 1.0
 
@@ -1163,7 +1183,7 @@ func _draw_bar_numbers() -> void:
 
 	for bar_index in range(bars):
 		var bar_number := str(bar_index + 1)
-		var x := (bar_index * bar_width) + 6.0
+		var x := track_label_width + (bar_index * bar_width) + 6.0
 		var y := header_height * 0.7
 
 		draw_string(
@@ -1176,7 +1196,31 @@ func _draw_bar_numbers() -> void:
 			bar_number_color
 		)
 
+func _draw_track_names() -> void:
+	var font := get_theme_default_font()
+	var font_size := get_theme_default_font_size() - 2.0
 
+	for track_index in range(track_count):
+		var y := _track_to_y(track_index)
+		var track_name := "Track %d" % [track_index + 1]
+
+		if track_index < track_names.size():
+			track_name = track_names[track_index]
+
+		var text_position := Vector2(
+			8.0,
+			y + (lane_height * 0.62)
+		)
+
+		draw_string(
+			font,
+			text_position,
+			track_name,
+			HORIZONTAL_ALIGNMENT_LEFT,
+			track_label_width - 16.0,
+			font_size,
+			bar_number_color
+		)
 
 func _draw_fake_clips() -> void:
 	var font := get_theme_default_font()
@@ -1202,7 +1246,7 @@ func _draw_fake_clips() -> void:
 		if rect.size.x <= 1.0 or rect.size.y <= 1.0:
 			continue
 
-		var color: Color = track_colors[track_index]
+		var color: Color = _get_track_color(track_index)
 
 		draw_rect(rect, color, true)
 

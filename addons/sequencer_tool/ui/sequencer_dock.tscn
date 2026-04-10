@@ -226,6 +226,7 @@ track_count = 7
 auto_scroll_edge_threshold = 12.0
 auto_scroll_speed = 12.0
 min_clip_length = 0.9
+track_label_width = null
 
 [node name="NewSequenceDialog" type="ConfirmationDialog" parent="." unique_id=406818455]
 title = "New Sequence"
@@ -243,6 +244,9 @@ text = "Bars"
 
 [node name="NewBarsSpin" type="SpinBox" parent="NewSequenceDialog/MarginContainer/VBoxContainer" unique_id=125627188]
 layout_mode = 2
+min_value = 1.0
+value = 1.0
+rounded = true
 
 [node name="NewBeatsLabel" type="Label" parent="NewSequenceDialog/MarginContainer/VBoxContainer" unique_id=1546436418]
 layout_mode = 2
@@ -250,6 +254,9 @@ text = "Beats per bar"
 
 [node name="NewBeatsSpin" type="SpinBox" parent="NewSequenceDialog/MarginContainer/VBoxContainer" unique_id=15778441]
 layout_mode = 2
+min_value = 1.0
+value = 1.0
+rounded = true
 
 [node name="NewSubdivisionsLabel" type="Label" parent="NewSequenceDialog/MarginContainer/VBoxContainer" unique_id=1762325292]
 layout_mode = 2
@@ -257,12 +264,17 @@ text = "Subdivisions per beat"
 
 [node name="NewSubdivisionsSpin" type="SpinBox" parent="NewSequenceDialog/MarginContainer/VBoxContainer" unique_id=1355234774]
 layout_mode = 2
+min_value = 1.0
+value = 1.0
+rounded = true
 
 [node name="OpenSequenceDialog" type="FileDialog" parent="." unique_id=1565727889]
 title = "Open a File"
 file_mode = 0
+filters = PackedStringArray("*.json ; Sequencer Tool JSON")
 
 [node name="SaveSequenceDialog" type="FileDialog" parent="." unique_id=1339875807]
+filters = PackedStringArray("*.json ; Sequencer Tool JSON")
 
 [connection signal="pressed" from="ToolBar/ButtonNew" to="." method="_on_button_new_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonOpen" to="." method="_on_button_open_pressed"]

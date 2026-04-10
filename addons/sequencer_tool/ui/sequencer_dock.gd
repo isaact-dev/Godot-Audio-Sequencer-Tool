@@ -233,6 +233,11 @@ func _refresh_tracks_list(track_names: Array) -> void:
 
 func _on_timeline_control_tracks_changed(track_names: Array) -> void:
 	track_spin.max_value = max(0, timeline.track_count - 1)
+	for child in tracks_list.get_children():
+		for sub in child.get_children():
+			if sub is LineEdit and sub.has_focus():
+				return
+
 	_refresh_tracks_list(track_names)
 
 func _on_track_add_button_pressed() -> void:
@@ -249,9 +254,11 @@ func _on_track_move_down_pressed(track_index: int) -> void:
 
 func _on_track_name_submitted(_text: String, track_index: int, line_edit: LineEdit) -> void:
 	timeline.rename_track(track_index, line_edit.text)
+	line_edit.release_focus()
 
 func _on_track_name_focus_exited(track_index: int, line_edit: LineEdit) -> void:
 	timeline.rename_track(track_index, line_edit.text)
+	_refresh_tracks_list(timeline.get_track_names())
 
 func _on_button_new_pressed():
 	new_bars_spin.value = timeline.bars
