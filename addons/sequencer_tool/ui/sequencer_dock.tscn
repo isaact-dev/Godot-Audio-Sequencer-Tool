@@ -214,7 +214,7 @@ size_flags_vertical = 3
 layout_mode = 2
 
 [node name="TimelineControl" type="Control" parent="HSplitContainer/TimelineBox/TimelinePanel/ScrollContainer" unique_id=890179304]
-custom_minimum_size = Vector2(1728, 368)
+custom_minimum_size = Vector2(1798, 368)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
@@ -226,7 +226,6 @@ track_count = 7
 auto_scroll_edge_threshold = 12.0
 auto_scroll_speed = 12.0
 min_clip_length = 0.9
-track_label_width = null
 
 [node name="NewSequenceDialog" type="ConfirmationDialog" parent="." unique_id=406818455]
 title = "New Sequence"

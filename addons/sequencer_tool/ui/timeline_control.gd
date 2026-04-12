@@ -76,6 +76,9 @@ var active_resize_handle_color := Color(1.0, 0.9, 0.35, 0.95)
 var drag_original_clip_index: int = -1
 var drag_original_clip_data: Dictionary
 
+var resize_original_clip_index: int = -1
+var resize_original_clip_data: Dictionary = {}
+
 var editor_undo_redo: EditorUndoRedoManager = null
 
 signal status_text_changed(text: String)
@@ -268,6 +271,8 @@ func _reset_selection_and_interaction_state() -> void:
 	resized_clip_index = -1
 	resize_grab_offset = 0.0
 	resize_start_mouse_position = Vector2.ZERO
+	resize_original_clip_index = -1
+	resize_original_clip_data = {}
 
 func get_sequence_data() -> Dictionary:
 	var serialized_clips: Array[Dictionary] = []
@@ -346,8 +351,6 @@ func create_new_sequence(new_bars: int, new_beats_per_bar: int, new_subdivisions
 
 func _gui_input(event: InputEvent) -> void:
 	_update_temporary_snap_override_from_event(event)
-
-
 	if event is InputEventKey:
 		var key_event := event as InputEventKey
 		if key_event.pressed and not key_event.echo:
@@ -371,7 +374,10 @@ func _gui_input(event: InputEvent) -> void:
 					_nudge_selected_clip(keyboard_nudge_amount, true)
 				accept_event()
 				return
-
+			if key_event.ctrl_pressed and key_event.keycode == KEY_D:
+					duplicate_selected_clip()
+					accept_event()
+					return
 
 	if event is InputEventMouseMotion:
 		var mouse_motion_event := event as InputEventMouseMotion
@@ -602,6 +608,34 @@ func add_clip() -> void:
 	_emit_selected_clip_changed()
 	queue_redraw()
 
+func duplicate_selected_clip() -> void:
+	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
+		return
+
+	var source_clip := fake_clips[selected_clip_index]
+	if not source_clip.has("track") or not source_clip.has("start") or not source_clip.has("length"):
+		return
+
+	var duplicated_clip := source_clip.duplicate(true)
+	var source_start := float(source_clip["start"])
+	var source_length := float(source_clip["length"])
+	var total_subdivisions := float(_get_total_subdivisions())
+	var new_start := source_start + source_length
+	var max_start := max(0.0, total_subdivisions - source_length)
+
+	duplicated_clip["start"] = clamp(new_start, 0.0, max_start)
+	duplicated_clip["name"] = "%s Copy" % str(source_clip.get("name", "Clip"))
+
+	var insert_index := selected_clip_index + 1
+
+	if editor_undo_redo == null:
+		_insert_clip_at(insert_index, duplicated_clip)
+		return
+
+	editor_undo_redo.create_action("Duplicate Clip")
+	editor_undo_redo.add_do_method(self, "_insert_clip_at", insert_index, duplicated_clip)
+	editor_undo_redo.add_undo_method(self, "_remove_clip_at", insert_index)
+	editor_undo_redo.commit_action()
 
 func delete_selected_clip() -> void:
 	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
@@ -746,6 +780,9 @@ func _remove_clip_at(clip_index: int) -> void:
 	resized_clip_index = -1
 	resize_grab_offset = 0.0
 	resize_start_mouse_position = Vector2.ZERO
+	resize_original_clip_index = -1
+	resize_original_clip_data = {}
+
 	_emit_status_text()
 	_emit_selected_clip_changed()
 	queue_redraw()
@@ -874,6 +911,9 @@ func _begin_clip_resize(clip_index: int, mouse_position: Vector2) -> void:
 
 	if not clip.has("start") or not clip.has("length"):
 		return
+	resize_original_clip_index = clip_index
+	resize_original_clip_data = clip.duplicate(true)
+
 	var clip_start: float = clip["start"]
 	var clip_length: float = clip["length"]
 	var clip_end := clip_start + clip_length
@@ -934,11 +974,31 @@ func _end_clip_resize() -> void:
 	if not is_resizing_clip:
 		return
 
+	var should_register_undo := false
+	var final_clip_index := resize_original_clip_index
+	var before_clip: Dictionary = {}
+	var after_clip: Dictionary = {}
+
+	if resize_original_clip_index >= 0 and resize_original_clip_index < fake_clips.size() and not resize_original_clip_data.is_empty():
+		var current_clip := fake_clips[resize_original_clip_index]
+		if resize_original_clip_data != current_clip:
+			should_register_undo = true
+			before_clip = resize_original_clip_data.duplicate(true)
+			after_clip = current_clip.duplicate(true)
+
 	is_resizing_clip = false
 	resized_clip_index = -1
 	resize_grab_offset = 0.0
 	resize_start_mouse_position = Vector2.ZERO
 	temporary_snap_override_active = false
+	if should_register_undo and editor_undo_redo != null:
+		editor_undo_redo.create_action("Resize Clip")
+		editor_undo_redo.add_do_method(self, "_set_clip_data", final_clip_index, after_clip)
+		editor_undo_redo.add_undo_method(self, "_set_clip_data", final_clip_index, before_clip)
+		editor_undo_redo.commit_action()
+
+	resize_original_clip_index = -1
+	resize_original_clip_data = {}
 
 	_update_cursor_shape()
 	_emit_status_text()
