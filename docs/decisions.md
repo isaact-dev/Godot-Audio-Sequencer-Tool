@@ -171,3 +171,24 @@ Undo for delete and move should be registered through EditorUndoRedoManager from
 ### Decision
 
 Clip colors are derived exclusively from track colors. This eliminates per-clip color state, reducing save size, and enforcing a cleaner, deterministic visual model.
+
+## 2026-04-12 — Clips on the same track should never overlap
+
+### Decision
+
+Clips on the same track should not be allowed to overlap.
+
+This rule should apply consistently across all ways of editing clips, including:
+- dragging
+- resizing
+- clip property edits from the dock
+- clip creation
+- clip duplication
+- track reassignment
+
+### Reasoning
+
+Allowing overlapping clips on the same track creates ambiguous editing behavior.
+Although top-most hit detection provides a fallback for overlapping clips, overlap should not be treated as a normal valid state for clips that share one track.
+
+A non-overlap rule makes the timeline easier to read, simplifies selection behavior, and gives more predictable results for dragging, trimming, and property edits.

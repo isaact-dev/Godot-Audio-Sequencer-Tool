@@ -210,6 +210,94 @@ func _get_clip_index_at_position(position: Vector2) -> int:
 
 	return -1
 
+func _get_clip_end(clip: Dictionary) -> float:
+	return float(clip["start"]) + float(clip["length"])
+
+func _get_track_clips_sorted(track_index: int, exclude_clip_index: int = -1) -> Array[Dictionary]:
+	var clips_on_track: Array[Dictionary] = []
+
+	for i in range(fake_clips.size()):
+		if i == exclude_clip_index:
+			continue
+
+		var clip := fake_clips[i]
+		if not clip.has("track") or not clip.has("start") or not clip.has("length"):
+			continue
+
+		if int(clip["track"]) != track_index:
+			continue
+
+		clips_on_track.append({
+			"index": i,
+			"start": float(clip["start"]),
+			"end": _get_clip_end(clip)
+		})
+
+	clips_on_track.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a["start"]) < float(b["start"])
+	)
+
+	return clips_on_track
+
+func _get_clip_start_limits(track_index: int, exclude_clip_index: int, clip_length: float, desired_start: float) -> Dictionary:
+	var total_subdivisions := float(_get_total_subdivisions())
+	var min_start := 0.0
+	var next_start := total_subdivisions
+
+	for other in _get_track_clips_sorted(track_index, exclude_clip_index):
+		var other_start := float(other["start"])
+		var other_end := float(other["end"])
+
+		if other_end <= desired_start:
+			min_start = max(min_start, other_end)
+		elif other_start >= desired_start:
+			next_start = min(next_start, other_start)
+			break
+		else:
+			min_start = max(min_start, other_end)
+
+	var max_start := next_start - clip_length
+	var has_room := max_start >= min_start
+
+	return {
+		"min_start": min_start,
+		"max_start": max_start,
+		"has_room": has_room
+	}
+
+func _get_max_clip_length_without_overlap(track_index: int, exclude_clip_index: int, clip_start: float) -> float:
+	var total_subdivisions := float(_get_total_subdivisions())
+	var next_start := total_subdivisions
+
+	for other in _get_track_clips_sorted(track_index, exclude_clip_index):
+		var other_start := float(other["start"])
+
+		if other_start >= clip_start:
+			next_start = other_start
+			break
+
+	return max(min_clip_length, next_start - clip_start)
+
+func _find_available_start(track_index: int, clip_length: float, preferred_start: float, exclude_clip_index: int = -1) -> float:
+	var total_subdivisions := float(_get_total_subdivisions())
+	var max_start := max(0.0, total_subdivisions - clip_length)
+	var candidate_start := clamp(preferred_start, 0.0, max_start)
+
+	for other in _get_track_clips_sorted(track_index, exclude_clip_index):
+		var other_start := float(other["start"])
+		var other_end := float(other["end"])
+
+		if candidate_start + clip_length <= other_start:
+			return candidate_start
+
+		if candidate_start < other_end:
+			candidate_start = other_end
+
+		if candidate_start > max_start:
+			return -1.0
+
+	return candidate_start
+
 func _build_status_text() -> String:
 	var snap_text := "On" if _is_snap_active() else "Off"
 
@@ -503,17 +591,26 @@ func _update_clip_drag(mouse_position: Vector2) -> void:
 
 	var length: float = clip["length"]
 	var mouse_timeline_position := _x_to_timeline(mouse_position.x)
+	var desired_start := mouse_timeline_position - drag_grab_offset
+	desired_start = _snap_timeline_position(desired_start)
 
-	var new_start := mouse_timeline_position - drag_grab_offset
-	new_start = _snap_timeline_position(new_start)
+	var target_track := _y_to_track_index(mouse_position.y)
+	var target_limits := _get_clip_start_limits(target_track, dragged_clip_index, length, desired_start)
 
-	var max_start := max(0.0, float(_get_total_subdivisions()) - length)
-	new_start = clamp(new_start, 0.0, max_start)
+	var new_track := int(clip["track"])
+	var new_start := float(clip["start"])
 
-	var new_track := _y_to_track_index(mouse_position.y)
+	if bool(target_limits["has_room"]):
+		new_track = target_track
+		new_start = clamp(desired_start, float(target_limits["min_start"]), float(target_limits["max_start"]))
+	else:
+		var current_limits := _get_clip_start_limits(int(clip["track"]), dragged_clip_index, length, desired_start)
+		if bool(current_limits["has_room"]):
+			new_start = clamp(desired_start, float(current_limits["min_start"]), float(current_limits["max_start"]))
 
-	clip["start"] = new_start
 	clip["track"] = new_track
+	clip["start"] = new_start
+
 	fake_clips[dragged_clip_index] = clip
 
 	_emit_status_text()
@@ -590,9 +687,10 @@ func add_clip() -> void:
 			new_start = float(selected_clip["start"]) + float(selected_clip["length"])
 
 	new_start = _snap_timeline_position(new_start)
+	new_start = _find_available_start(new_track, default_length, new_start)
 
-	var max_start := max(0.0, total_subdivisions - default_length)
-	new_start = clamp(new_start, 0.0, max_start)
+	if new_start < 0.0:
+		return
 
 	var new_clip := {
 		"track": new_track,
@@ -620,10 +718,14 @@ func duplicate_selected_clip() -> void:
 	var source_start := float(source_clip["start"])
 	var source_length := float(source_clip["length"])
 	var total_subdivisions := float(_get_total_subdivisions())
-	var new_start := source_start + source_length
-	var max_start := max(0.0, total_subdivisions - source_length)
+	var duplicated_start := source_start + source_length
+	duplicated_start = _snap_timeline_position(duplicated_start)
+	duplicated_start = _find_available_start(int(source_clip["track"]), source_length, duplicated_start)
 
-	duplicated_clip["start"] = clamp(new_start, 0.0, max_start)
+	if duplicated_start < 0.0:
+		return
+
+	duplicated_clip["start"] = duplicated_start
 	duplicated_clip["name"] = "%s Copy" % str(source_clip.get("name", "Clip"))
 
 	var insert_index := selected_clip_index + 1
@@ -699,7 +801,16 @@ func set_selected_clip_track(value: int) -> void:
 		return
 
 	var clip := fake_clips[selected_clip_index]
-	clip["track"] = clamp(value, 0, track_count - 1)
+	var target_track := clamp(value, 0, track_count - 1)
+	var start: float = clip["start"]
+	var length: float = clip["length"]
+	var limits := _get_clip_start_limits(target_track, selected_clip_index, length, start)
+
+	if not bool(limits["has_room"]):
+		return
+
+	clip["track"] = target_track
+	clip["start"] = clamp(start, float(limits["min_start"]), float(limits["max_start"]))
 	fake_clips[selected_clip_index] = clip
 
 	_emit_status_text()
@@ -716,9 +827,13 @@ func set_selected_clip_start(value: float) -> void:
 		return
 
 	var length: float = clip["length"]
-	var max_start := max(0.0, float(_get_total_subdivisions()) - length)
+	var track_index: int = clip["track"]
+	var limits := _get_clip_start_limits(track_index, selected_clip_index, length, value)
 
-	clip["start"] = clamp(value, 0.0, max_start)
+	if not bool(limits["has_room"]):
+		return
+
+	clip["start"] = clamp(value, float(limits["min_start"]), float(limits["max_start"]))
 	fake_clips[selected_clip_index] = clip
 
 	_emit_status_text()
@@ -735,8 +850,8 @@ func set_selected_clip_length(value: float) -> void:
 		return
 
 	var start: float = clip["start"]
-	var max_length := max(min_clip_length, float(_get_total_subdivisions()) - start)
-
+	var track_index: int = clip["track"]
+	var max_length := _get_max_clip_length_without_overlap(track_index, selected_clip_index, start)
 	clip["length"] = clamp(value, min_clip_length, max_length)
 	fake_clips[selected_clip_index] = clip
 
@@ -951,15 +1066,16 @@ func _update_clip_resize(mouse_position: Vector2) -> void:
 		return
 
 	var start: float = clip["start"]
+	var track_index: int = clip["track"]
 	var mouse_timeline_position := _x_to_timeline(mouse_position.x)
-
 	var new_end := mouse_timeline_position - resize_grab_offset
 	new_end = _snap_timeline_position(new_end)
 
 	var min_end := start + min_clip_length
-	var max_end := float(_get_total_subdivisions())
-	new_end = clamp(new_end, min_end, max_end)
+	var max_length := _get_max_clip_length_without_overlap(track_index, resized_clip_index, start)
+	var max_end := start + max_length
 
+	new_end = clamp(new_end, min_end, max_end)
 	var new_length := new_end - start
 
 	clip["length"] = new_length
@@ -1124,7 +1240,7 @@ func _create_demo_clips() -> void:
 		},
 		{
 			"track": 0,
-			"start": 16.5,
+			"start": 29.0,
 			"length": 15.2,
 			"name": "Kick Fill",
 			"color": Color(0.25, 0.50, 0.80)
