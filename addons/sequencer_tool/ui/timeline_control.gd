@@ -20,6 +20,7 @@ class_name TimelineControl
 @export var min_clip_length: float = 0.85
 @export var resize_handle_width: float = 10.0
 @export var track_label_width: float = 70.0
+@export var blocked_action_flash_duration: float = 0.18
 
 var background_color := Color(0.10, 0.10, 0.12)
 var header_color := Color(0.16, 0.16, 0.20)
@@ -45,6 +46,9 @@ var track_color_palette: Array[Color] = [
 	Color(0.56, 0.42, 0.28)
 ]
 
+var blocked_action_flash_time: float = 0.0
+var blocked_action_flash_fill_color := Color(0.749, 0.18, 0.18, 0.039)
+var blocked_action_flash_outline_color := Color(0.949, 0.302, 0.302, 0.486)
 var fake_clips: Array[Dictionary] = []
 
 var track_names: Array[String] = []
@@ -84,6 +88,8 @@ var editor_undo_redo: EditorUndoRedoManager = null
 signal status_text_changed(text: String)
 signal selected_clip_changed(clip_index: int, clip_data: Dictionary)
 signal tracks_changed(track_names: Array)
+
+var action_feedback_text: String = ""
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -300,30 +306,52 @@ func _find_available_start(track_index: int, clip_length: float, preferred_start
 
 func _build_status_text() -> String:
 	var snap_text := "On" if _is_snap_active() else "Off"
+	var base_text := ""
 
 	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
-		return "Selected: None | Start: - | Length: - | Snap: %s" % snap_text
+		base_text = "Selected: None | Start: - | Length: - | Snap: %s" % snap_text
+	else:
+		var clip := fake_clips[selected_clip_index]
 
-	var clip := fake_clips[selected_clip_index]
+		if not clip.has("name") or not clip.has("start") or not clip.has("length"):
+			base_text = "Selected: Invalid | Start: - | Length: - | Snap: %s" % snap_text
+		else:
+			var clip_name := str(clip["name"])
+			var start: float = clip["start"]
+			var length: float = clip["length"]
+			var track: int = clip["track"]
 
-	if not clip.has("name") or not clip.has("start") or not clip.has("length"):
-		return "Selected: Invalid | Start: - | Length: - | Snap: %s" % snap_text
+			base_text = "Selected: %s | Start: %.2f | Length: %.2f | Track: %d | Snap: %s" % [
+				clip_name,
+				start,
+				length,
+				track,
+				snap_text
+			]
 
-	var clip_name := str(clip["name"])
-	var start: float = clip["start"]
-	var length: float = clip["length"]
-	var track: int = clip["track"]
+	if not action_feedback_text.is_empty():
+		base_text += " | %s" % action_feedback_text
 
-	return "Selected: %s | Start: %.2f | Length: %.2f | Track: %d | Snap: %s" % [
-		clip_name,
-		start,
-		length,
-		track,
-		snap_text
-	]
+	return base_text
 
 func _emit_status_text() -> void:
 	status_text_changed.emit(_build_status_text())
+
+func _show_blocked_action_feedback(message: String) -> void:
+	_set_action_feedback(message)
+	blocked_action_flash_time = blocked_action_flash_duration
+	queue_redraw()
+
+func _set_action_feedback(message: String) -> void:
+	action_feedback_text = message
+	_emit_status_text()
+
+func _clear_action_feedback() -> void:
+	if action_feedback_text.is_empty():
+		return
+
+	action_feedback_text = ""
+	_emit_status_text()
 
 func _create_default_track_name(track_index: int) -> String:
 	return "Track %d" % [track_index + 1]
@@ -513,15 +541,17 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	if blocked_action_flash_time > 0.0:
+		blocked_action_flash_time = max(0.0, blocked_action_flash_time - delta)
+		queue_redraw()
+
 	if not is_dragging_clip and not is_resizing_clip:
 		return
 
 	temporary_snap_override_active = Input.is_key_pressed(KEY_SHIFT)
 
 	var mouse_position := get_local_mouse_position()
-
 	_auto_scroll_during_drag(mouse_position, delta)
-
 	mouse_position = get_local_mouse_position()
 
 	if is_resizing_clip:
@@ -690,7 +720,10 @@ func add_clip() -> void:
 	new_start = _find_available_start(new_track, default_length, new_start)
 
 	if new_start < 0.0:
+		_show_blocked_action_feedback("No room to add a clip on this track.")
 		return
+
+	_clear_action_feedback()
 
 	var new_clip := {
 		"track": new_track,
@@ -708,11 +741,14 @@ func add_clip() -> void:
 
 func duplicate_selected_clip() -> void:
 	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
+		_show_blocked_action_feedback("No clip selected to duplicate.")
 		return
 
 	var source_clip := fake_clips[selected_clip_index]
 	if not source_clip.has("track") or not source_clip.has("start") or not source_clip.has("length"):
+		_show_blocked_action_feedback("Selected clip is invalid for duplication.")
 		return
+
 
 	var duplicated_clip := source_clip.duplicate(true)
 	var source_start := float(source_clip["start"])
@@ -723,7 +759,10 @@ func duplicate_selected_clip() -> void:
 	duplicated_start = _find_available_start(int(source_clip["track"]), source_length, duplicated_start)
 
 	if duplicated_start < 0.0:
+		_show_blocked_action_feedback("No room to duplicate this clip on its track.")
 		return
+
+	_clear_action_feedback()
 
 	duplicated_clip["start"] = duplicated_start
 	duplicated_clip["name"] = "%s Copy" % str(source_clip.get("name", "Clip"))
@@ -1297,6 +1336,7 @@ func _draw() -> void:
 	_draw_vertical_grid()
 	_draw_fake_clips()
 	_draw_bar_numbers()
+	_draw_blocked_action_feedback()
 
 func _draw_background() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), background_color, true)
@@ -1397,6 +1437,21 @@ func _draw_track_names() -> void:
 			font_size,
 			bar_number_color
 		)
+
+func _draw_blocked_action_feedback() -> void:
+	if blocked_action_flash_time <= 0.0:
+		return
+
+	var strength := blocked_action_flash_time / blocked_action_flash_duration
+
+	var fill_color := blocked_action_flash_fill_color
+	fill_color.a *= strength
+
+	var outline_color := blocked_action_flash_outline_color
+	outline_color.a *= strength
+
+	draw_rect(Rect2(Vector2.ZERO, size), fill_color, true)
+	draw_rect(Rect2(Vector2.ZERO, size), outline_color, false, 2.0)
 
 func _draw_fake_clips() -> void:
 	var font := get_theme_default_font()

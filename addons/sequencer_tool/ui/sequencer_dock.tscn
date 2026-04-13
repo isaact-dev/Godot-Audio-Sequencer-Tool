@@ -226,6 +226,7 @@ track_count = 7
 auto_scroll_edge_threshold = 12.0
 auto_scroll_speed = 12.0
 min_clip_length = 0.9
+blocked_action_flash_duration = null
 
 [node name="NewSequenceDialog" type="ConfirmationDialog" parent="." unique_id=406818455]
 title = "New Sequence"

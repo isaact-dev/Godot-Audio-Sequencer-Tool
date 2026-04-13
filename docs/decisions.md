@@ -192,3 +192,8 @@ Allowing overlapping clips on the same track creates ambiguous editing behavior.
 Although top-most hit detection provides a fallback for overlapping clips, overlap should not be treated as a normal valid state for clips that share one track.
 
 A non-overlap rule makes the timeline easier to read, simplifies selection behavior, and gives more predictable results for dragging, trimming, and property edits.
+
+## 2026-04-13 — When clip creation or duplication fails because no valid open space exists, there should be feedback for this
+
+### Decision
+When clip creation or duplication fails because no valid open space exists, there should be feedback for this. This way it is clear to the user what is happening.
