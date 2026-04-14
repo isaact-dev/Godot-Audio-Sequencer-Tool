@@ -276,6 +276,13 @@ filters = PackedStringArray("*.json ; Sequencer Tool JSON")
 [node name="SaveSequenceDialog" type="FileDialog" parent="." unique_id=1339875807]
 filters = PackedStringArray("*.json ; Sequencer Tool JSON")
 
+[node name="TrackDeleteConfirmDialog" type="ConfirmationDialog" parent="." unique_id=245853157]
+title = "Delete track"
+ok_button_text = "Confirm"
+dialog_text = "Deleting a track will permanently delete all clips on that track.
+
+This action cannot be undone."
+
 [connection signal="pressed" from="ToolBar/ButtonNew" to="." method="_on_button_new_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonOpen" to="." method="_on_button_open_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonSave" to="." method="_on_button_save_pressed"]
@@ -298,3 +305,5 @@ filters = PackedStringArray("*.json ; Sequencer Tool JSON")
 [connection signal="confirmed" from="NewSequenceDialog" to="." method="_on_new_sequence_dialog_confirmed"]
 [connection signal="file_selected" from="OpenSequenceDialog" to="." method="_on_open_sequence_dialog_file_selected"]
 [connection signal="file_selected" from="SaveSequenceDialog" to="." method="_on_save_sequence_dialog_file_selected"]
+[connection signal="canceled" from="TrackDeleteConfirmDialog" to="." method="_on_track_delete_confirm_dialog_canceled"]
+[connection signal="confirmed" from="TrackDeleteConfirmDialog" to="." method="_on_track_delete_confirm_dialog_confirmed"]

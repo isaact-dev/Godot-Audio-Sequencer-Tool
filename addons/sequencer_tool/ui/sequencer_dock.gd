@@ -21,12 +21,15 @@ extends VBoxContainer
 @onready var open_sequence_dialog = $OpenSequenceDialog
 @onready var save_sequence_dialog = $SaveSequenceDialog
 @onready var bpm_slider = $HSplitContainer/SettingsHost/TimelineSettings/BPM/BPMSlider
+@onready var track_delete_confirm_dialog = $TrackDeleteConfirmDialog
 
 var editor_undo_redo: EditorUndoRedoManager = null
 
 var current_sequence_path: String = ""
 
 var _updating_clip_settings_ui: bool = false
+
+var pending_track_delete_index: int = -1
 
 func _ready() -> void:
 	if timeline == null:
@@ -254,7 +257,8 @@ func _on_track_add_button_pressed() -> void:
 	timeline.add_track()
 
 func _on_track_delete_pressed(track_index: int) -> void:
-	timeline.remove_track(track_index)
+	pending_track_delete_index = track_index
+	track_delete_confirm_dialog.popup_centered()
 
 func _on_track_move_up_pressed(track_index: int) -> void:
 	timeline.move_track(track_index, track_index - 1)
@@ -334,3 +338,15 @@ func _on_clip_close_button_pressed() -> void:
 
 func _on_bpm_slider_value_changed(value):
 	timeline.set_bpm(value)
+
+
+func _on_track_delete_confirm_dialog_confirmed():
+	if pending_track_delete_index < 0:
+		return
+
+	timeline.remove_track(pending_track_delete_index)
+	pending_track_delete_index = -1
+
+
+func _on_track_delete_confirm_dialog_canceled():
+	pending_track_delete_index = -1

@@ -1259,10 +1259,11 @@ func add_track() -> void:
 func remove_track(track_index: int) -> void:
 	if track_count <= 1:
 		return
+
 	if track_index < 0 or track_index >= track_count:
 		return
 
-	track_names.remove_at(track_index)
+	var clip_indices_to_remove: Array[int] = []
 
 	for i in range(fake_clips.size()):
 		var clip := fake_clips[i]
@@ -1272,25 +1273,32 @@ func remove_track(track_index: int) -> void:
 		var clip_track := int(clip["track"])
 
 		if clip_track == track_index:
-			clip["track"] = max(0, track_index - 1)
-		elif clip_track > track_index:
+			clip_indices_to_remove.append(i)
+
+	for i in range(clip_indices_to_remove.size() - 1, -1, -1):
+		fake_clips.remove_at(clip_indices_to_remove[i])
+
+	for i in range(fake_clips.size()):
+		var clip := fake_clips[i]
+		if not clip.has("track"):
+			continue
+
+		var clip_track := int(clip["track"])
+
+		if clip_track > track_index:
 			clip["track"] = clip_track - 1
+			fake_clips[i] = clip
 
-		fake_clips[i] = clip
-
+	track_names.remove_at(track_index)
 	track_count -= 1
 
-	if selected_clip_index >= 0 and selected_clip_index < fake_clips.size():
-		var selected_clip := fake_clips[selected_clip_index]
-		if selected_clip.has("track"):
-			selected_clip["track"] = clamp(int(selected_clip["track"]), 0, track_count - 1)
-			fake_clips[selected_clip_index] = selected_clip
-
+	_reset_selection_and_interaction_state()
 	_update_timeline_size()
 	_emit_status_text()
 	_emit_selected_clip_changed()
 	_emit_tracks_changed()
 	queue_redraw()
+
 
 func rename_track(track_index: int, value: String) -> void:
 	if track_index < 0 or track_index >= track_names.size():

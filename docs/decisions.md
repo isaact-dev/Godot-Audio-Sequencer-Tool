@@ -196,4 +196,12 @@ A non-overlap rule makes the timeline easier to read, simplifies selection behav
 ## 2026-04-13 — When clip creation or duplication fails because no valid open space exists, there should be feedback for this
 
 ### Decision
+
 When clip creation or duplication fails because no valid open space exists, there should be feedback for this. This way it is clear to the user what is happening.
+
+## 2026-04-14 — Deleting a track should remove all clips on that track
+
+### Decision
+
+Deleting a track should remove all clips on that track, with clip removal performed in reverse index order for safety.
+Deleting a track should require an explicit confirmation because it is not undoable.
