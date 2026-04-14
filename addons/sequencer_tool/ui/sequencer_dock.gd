@@ -20,6 +20,7 @@ extends VBoxContainer
 @onready var new_subdivisions_spin = $NewSequenceDialog/MarginContainer/VBoxContainer/NewSubdivisionsSpin
 @onready var open_sequence_dialog = $OpenSequenceDialog
 @onready var save_sequence_dialog = $SaveSequenceDialog
+@onready var bpm_slider = $HSplitContainer/SettingsHost/TimelineSettings/BPM/BPMSlider
 
 var editor_undo_redo: EditorUndoRedoManager = null
 
@@ -57,6 +58,11 @@ func _ready() -> void:
 	bars_slider.min_value = 1
 	bars_slider.step = 1
 	bars_slider.value = timeline.bars
+
+	bpm_slider.min_value = 1
+	bpm_slider.max_value = 300
+	bpm_slider.step = 1
+	bpm_slider.value = timeline.bpm
 
 	_refresh_tracks_list(timeline.get_track_names())
 	_clear_clip_settings_ui()
@@ -137,6 +143,10 @@ func _sync_clip_settings_ui(clip_index: int, clip_data: Dictionary) -> void:
 func _sync_timeline_settings_ui() -> void:
 	if bars_slider.value != timeline.bars:
 		bars_slider.value = timeline.bars
+
+	if bpm_slider.value != timeline.bpm:
+		bpm_slider.value = timeline.bpm
+
 func _save_sequence_to_path(path: String) -> void:
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
@@ -279,10 +289,10 @@ func _on_button_save_pressed():
 
 
 func _on_button_play_pressed():
-	print("play")
+	timeline.play()
 
 func _on_button_pause_pressed():
-	print("pause")
+	timeline.pause()
 
 func _on_timeline_control_status_text_changed(text: String) -> void:
 	status_label.text = text
@@ -320,3 +330,7 @@ func _on_clip_length_spin_value_changed(value: float) -> void:
 
 func _on_clip_close_button_pressed() -> void:
 	timeline.clear_selected_clip()
+
+
+func _on_bpm_slider_value_changed(value):
+	timeline.set_bpm(value)

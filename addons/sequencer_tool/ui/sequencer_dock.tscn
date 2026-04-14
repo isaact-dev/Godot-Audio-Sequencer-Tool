@@ -143,9 +143,9 @@ text = "BPM"
 
 [node name="BPMSlider" type="SpinBox" parent="HSplitContainer/SettingsHost/TimelineSettings/BPM" unique_id=407472577]
 layout_mode = 2
+min_value = 1.0
 max_value = 300.0
-step = 10.0
-value = 120.0
+value = 121.0
 
 [node name="Bars" type="VBoxContainer" parent="HSplitContainer/SettingsHost/TimelineSettings" unique_id=476687428]
 layout_mode = 2
@@ -226,7 +226,7 @@ track_count = 7
 auto_scroll_edge_threshold = 12.0
 auto_scroll_speed = 12.0
 min_clip_length = 0.9
-blocked_action_flash_duration = null
+bpm = 121.0
 
 [node name="NewSequenceDialog" type="ConfirmationDialog" parent="." unique_id=406818455]
 title = "New Sequence"
@@ -288,6 +288,7 @@ filters = PackedStringArray("*.json ; Sequencer Tool JSON")
 [connection signal="value_changed" from="HSplitContainer/SettingsHost/ClipSettings/ClipTrackSpin" to="." method="_on_clip_track_spin_value_changed"]
 [connection signal="value_changed" from="HSplitContainer/SettingsHost/ClipSettings/ClipStartSpin" to="." method="_on_clip_start_spin_value_changed"]
 [connection signal="value_changed" from="HSplitContainer/SettingsHost/ClipSettings/ClipLengthSpin" to="." method="_on_clip_length_spin_value_changed"]
+[connection signal="value_changed" from="HSplitContainer/SettingsHost/TimelineSettings/BPM/BPMSlider" to="." method="_on_bpm_slider_value_changed"]
 [connection signal="value_changed" from="HSplitContainer/SettingsHost/TimelineSettings/Bars/BarsSlider" to="." method="_on_bars_slider_value_changed"]
 [connection signal="pressed" from="HSplitContainer/SettingsHost/TimelineSettings/Tracks/TrackHeader/TrackAddButton" to="." method="_on_track_add_button_pressed"]
 [connection signal="mouse_exited" from="HSplitContainer/TimelineBox/TimelinePanel" to="HSplitContainer/TimelineBox/TimelinePanel/ScrollContainer/TimelineControl" method="_on_timeline_panel_mouse_exited"]

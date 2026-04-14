@@ -21,6 +21,7 @@ class_name TimelineControl
 @export var resize_handle_width: float = 10.0
 @export var track_label_width: float = 70.0
 @export var blocked_action_flash_duration: float = 0.18
+@export var bpm: float = 120.0
 
 var background_color := Color(0.10, 0.10, 0.12)
 var header_color := Color(0.16, 0.16, 0.20)
@@ -62,6 +63,11 @@ var selected_clip_outline_color := Color(1.0, 0.9, 0.35, 1.0)
 var selected_clip_overlay_color := Color(1.0, 1.0, 1.0, 0.08)
 var hovered_clip_outline_color := Color(1.0, 1.0, 1.0, 0.38)
 var hovered_clip_overlay_color := Color(1.0, 1.0, 1.0, 0.05)
+
+var playhead_line_color := Color(1.0, 0.9, 0.35, 1.0)
+var playhead_line_width: float = 2.0
+var is_playing: bool = false
+var playhead_position: float = 0.0
 
 var is_dragging_clip: bool = false
 var dragged_clip_index: int = -1
@@ -185,7 +191,7 @@ func _get_clip_rect(clip: Dictionary) -> Rect2:
 
 	var x := _timeline_to_x(start) + clip_horizontal_padding
 	var y := _track_to_y(track_index) + clip_vertical_padding
-	var width := (length * pixels_per_subdivision) - (clip_horizontal_padding * 2.0)
+	var width := (length * pixels_per_subdivision) - (clip_horizontal_padding/2)
 	var height := lane_height - (clip_vertical_padding * 2.0)
 
 	return Rect2(x, y, width, height)
@@ -336,6 +342,7 @@ func _build_status_text() -> String:
 
 func _emit_status_text() -> void:
 	status_text_changed.emit(_build_status_text())
+	_clear_action_feedback()
 
 func _show_blocked_action_feedback(message: String) -> void:
 	_set_action_feedback(message)
@@ -351,7 +358,7 @@ func _clear_action_feedback() -> void:
 		return
 
 	action_feedback_text = ""
-	_emit_status_text()
+
 
 func _create_default_track_name(track_index: int) -> String:
 	return "Track %d" % [track_index + 1]
@@ -407,15 +414,18 @@ func get_sequence_data() -> Dictionary:
 		"bars": bars,
 		"beats_per_bar": beats_per_bar,
 		"subdivisions_per_beat": subdivisions_per_beat,
+		"bpm": bpm,
 		"track_count": track_count,
 		"track_names": track_names.duplicate(),
 		"clips": serialized_clips
 	}
 
+
 func load_sequence_data(data: Dictionary) -> void:
 	bars = max(1, int(data.get("bars", bars)))
 	beats_per_bar = max(1, int(data.get("beats_per_bar", beats_per_bar)))
 	subdivisions_per_beat = max(1, int(data.get("subdivisions_per_beat", subdivisions_per_beat)))
+	bpm = max(1.0, float(data.get("bpm", bpm)))
 	track_count = max(1, int(data.get("track_count", track_count)))
 
 	track_names.clear()
@@ -450,6 +460,10 @@ func load_sequence_data(data: Dictionary) -> void:
 
 	_reset_selection_and_interaction_state()
 	_update_timeline_size()
+
+	is_playing = false
+	playhead_position = 0.0
+
 	_emit_status_text()
 	_emit_selected_clip_changed()
 	_emit_tracks_changed()
@@ -474,26 +488,25 @@ func _gui_input(event: InputEvent) -> void:
 				delete_selected_clip()
 				accept_event()
 				return
-
-			if key_event.keycode == KEY_LEFT:
-				if key_event.shift_pressed:
-					_nudge_selected_clip(-keyboard_micro_nudge_amount, false)
-				else:
-					_nudge_selected_clip(-keyboard_nudge_amount, true)
-				accept_event()
-				return
-
-			if key_event.keycode == KEY_RIGHT:
-				if key_event.shift_pressed:
-					_nudge_selected_clip(keyboard_micro_nudge_amount, false)
-				else:
-					_nudge_selected_clip(keyboard_nudge_amount, true)
-				accept_event()
-				return
 			if key_event.ctrl_pressed and key_event.keycode == KEY_D:
 					duplicate_selected_clip()
 					accept_event()
 					return
+		if key_event.keycode == KEY_LEFT:
+			if key_event.shift_pressed:
+				_nudge_selected_clip(-keyboard_micro_nudge_amount, false)
+			else:
+				_nudge_selected_clip(-keyboard_nudge_amount, true)
+			accept_event()
+			return
+
+		if key_event.keycode == KEY_RIGHT:
+			if key_event.shift_pressed:
+				_nudge_selected_clip(keyboard_micro_nudge_amount, false)
+			else:
+				_nudge_selected_clip(keyboard_nudge_amount, true)
+			accept_event()
+			return
 
 	if event is InputEventMouseMotion:
 		var mouse_motion_event := event as InputEventMouseMotion
@@ -545,6 +558,15 @@ func _process(delta: float) -> void:
 		blocked_action_flash_time = max(0.0, blocked_action_flash_time - delta)
 		queue_redraw()
 
+	if is_playing:
+		playhead_position += _get_subdivisions_per_second() * delta
+
+		if playhead_position >= float(_get_total_subdivisions()):
+			playhead_position = 0.0
+			is_playing = false
+
+		queue_redraw()
+
 	if not is_dragging_clip and not is_resizing_clip:
 		return
 
@@ -559,6 +581,9 @@ func _process(delta: float) -> void:
 	elif is_dragging_clip:
 		_update_clip_drag(mouse_position)
 
+
+func _is_editing_blocked_by_playback() -> bool:
+	return is_playing
 
 #Dragging
 
@@ -579,6 +604,9 @@ func _update_cursor_shape() -> void:
 		mouse_default_cursor_shape = Control.CURSOR_ARROW
 
 func _begin_clip_drag(clip_index: int, mouse_position: Vector2) -> void:
+	if _is_editing_blocked_by_playback():
+		return
+
 	if clip_index < 0 or clip_index >= fake_clips.size():
 		return
 	drag_start_mouse_position = mouse_position
@@ -696,6 +724,9 @@ func _is_snap_active() -> bool:
 	return snap_enabled != temporary_snap_override_active
 
 func add_clip() -> void:
+	if _is_editing_blocked_by_playback():
+		return
+
 	var default_length := max(4.0, min_clip_length)
 	var total_subdivisions := float(_get_total_subdivisions())
 
@@ -723,7 +754,7 @@ func add_clip() -> void:
 		_show_blocked_action_feedback("No room to add a clip on this track.")
 		return
 
-	_clear_action_feedback()
+
 
 	var new_clip := {
 		"track": new_track,
@@ -740,6 +771,9 @@ func add_clip() -> void:
 	queue_redraw()
 
 func duplicate_selected_clip() -> void:
+	if _is_editing_blocked_by_playback():
+		return
+
 	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
 		_show_blocked_action_feedback("No clip selected to duplicate.")
 		return
@@ -762,7 +796,6 @@ func duplicate_selected_clip() -> void:
 		_show_blocked_action_feedback("No room to duplicate this clip on its track.")
 		return
 
-	_clear_action_feedback()
 
 	duplicated_clip["start"] = duplicated_start
 	duplicated_clip["name"] = "%s Copy" % str(source_clip.get("name", "Clip"))
@@ -779,6 +812,9 @@ func duplicate_selected_clip() -> void:
 	editor_undo_redo.commit_action()
 
 func delete_selected_clip() -> void:
+	if _is_editing_blocked_by_playback():
+		return
+
 	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
 		return
 
@@ -796,24 +832,45 @@ func delete_selected_clip() -> void:
 
 
 func _nudge_selected_clip(amount: float, use_snap: bool) -> void:
+	if _is_editing_blocked_by_playback():
+		return
+
 	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
 		return
 
 	var clip := fake_clips[selected_clip_index]
 
-	if not clip.has("start") or not clip.has("length"):
+	if not clip.has("start") or not clip.has("length") or not clip.has("track"):
 		return
 
+	var track_index: int = clip["track"]
 	var start: float = clip["start"]
 	var length: float = clip["length"]
 
-	var new_start := start + amount
-
+	var desired_start := start + amount
 	if use_snap:
-		new_start = round(new_start)
+		desired_start = round(desired_start)
 
-	var max_start := max(0.0, float(_get_total_subdivisions()) - length)
-	new_start = clamp(new_start, 0.0, max_start)
+	var limits := _get_clip_start_limits(
+		track_index,
+		selected_clip_index,
+		length,
+		desired_start
+	)
+
+	if not bool(limits["has_room"]):
+		_show_blocked_action_feedback("No room to nudge clip.")
+		return
+
+	var new_start := clamp(
+		desired_start,
+		float(limits["min_start"]),
+		float(limits["max_start"])
+	)
+
+	if is_equal_approx(new_start, start):
+		_show_blocked_action_feedback("No room to nudge clip.")
+		return
 
 	clip["start"] = new_start
 	fake_clips[selected_clip_index] = clip
@@ -836,6 +893,9 @@ func set_selected_clip_name(value: String) -> void:
 	queue_redraw()
 
 func set_selected_clip_track(value: int) -> void:
+	if _is_editing_blocked_by_playback():
+		return
+
 	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
 		return
 
@@ -857,6 +917,9 @@ func set_selected_clip_track(value: int) -> void:
 	queue_redraw()
 
 func set_selected_clip_start(value: float) -> void:
+	if _is_editing_blocked_by_playback():
+		return
+
 	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
 		return
 
@@ -880,6 +943,9 @@ func set_selected_clip_start(value: float) -> void:
 	queue_redraw()
 
 func set_selected_clip_length(value: float) -> void:
+	if _is_editing_blocked_by_playback():
+		return
+
 	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
 		return
 
@@ -1058,6 +1124,9 @@ func _update_hovered_resize_handle(position: Vector2) -> void:
 	queue_redraw()
 
 func _begin_clip_resize(clip_index: int, mouse_position: Vector2) -> void:
+	if _is_editing_blocked_by_playback():
+		return
+
 	if clip_index < 0 or clip_index >= fake_clips.size():
 		return
 	resize_start_mouse_position = mouse_position
@@ -1264,6 +1333,20 @@ func move_track(from_index: int, to_index: int) -> void:
 	_emit_tracks_changed()
 	queue_redraw()
 
+func _get_subdivisions_per_second() -> float:
+	return (bpm / 60.0) * float(subdivisions_per_beat)
+
+func play() -> void:
+	is_playing = true
+	queue_redraw()
+
+func pause() -> void:
+	is_playing = false
+	queue_redraw()
+
+func set_bpm(value: float) -> void:
+	bpm = max(1.0, value)
+	queue_redraw()
 
 func _create_demo_clips() -> void:
 	if not fake_clips.is_empty():
@@ -1337,6 +1420,7 @@ func _draw() -> void:
 	_draw_fake_clips()
 	_draw_bar_numbers()
 	_draw_blocked_action_feedback()
+	_draw_playhead()
 
 func _draw_background() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), background_color, true)
@@ -1452,6 +1536,16 @@ func _draw_blocked_action_feedback() -> void:
 
 	draw_rect(Rect2(Vector2.ZERO, size), fill_color, true)
 	draw_rect(Rect2(Vector2.ZERO, size), outline_color, false, 2.0)
+
+func _draw_playhead() -> void:
+	var x := _timeline_to_x(playhead_position)
+
+	draw_line(
+		Vector2(x, 0),
+		Vector2(x, size.y),
+		playhead_line_color,
+		playhead_line_width
+	)
 
 func _draw_fake_clips() -> void:
 	var font := get_theme_default_font()
