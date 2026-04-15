@@ -68,6 +68,9 @@ var playhead_line_color := Color(1.0, 0.9, 0.35, 1.0)
 var playhead_line_width: float = 2.0
 var is_playing: bool = false
 var playhead_position: float = 0.0
+var is_scrubbing_playhead: bool = false
+var was_playing_before_scrub: bool = false
+
 
 var is_dragging_clip: bool = false
 var dragged_clip_index: int = -1
@@ -359,6 +362,30 @@ func _clear_action_feedback() -> void:
 
 	action_feedback_text = ""
 
+func set_playhead_position(value: float) -> void:
+	playhead_position = clamp(value, 0.0, float(_get_total_subdivisions()))
+	queue_redraw()
+
+func _update_playhead_from_mouse_x(mouse_x: float) -> void:
+	set_playhead_position(_x_to_timeline(mouse_x))
+
+func _begin_playhead_scrub(mouse_x: float) -> void:
+	is_scrubbing_playhead = true
+	was_playing_before_scrub = is_playing
+	is_playing = false
+	_update_playhead_from_mouse_x(mouse_x)
+
+func _end_playhead_scrub() -> void:
+	if not is_scrubbing_playhead:
+		return
+
+	is_scrubbing_playhead = false
+
+	if was_playing_before_scrub:
+		is_playing = true
+
+	was_playing_before_scrub = false
+	queue_redraw()
 
 func _create_default_track_name(track_index: int) -> String:
 	return "Track %d" % [track_index + 1]
@@ -492,6 +519,8 @@ func _gui_input(event: InputEvent) -> void:
 					duplicate_selected_clip()
 					accept_event()
 					return
+			if key_event.keycode == KEY_SPACE:
+				is_playing = !is_playing
 		if key_event.keycode == KEY_LEFT:
 			if key_event.shift_pressed:
 				_nudge_selected_clip(-keyboard_micro_nudge_amount, false)
@@ -511,19 +540,27 @@ func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var mouse_motion_event := event as InputEventMouseMotion
 
+		if is_scrubbing_playhead:
+			_update_playhead_from_mouse_x(mouse_motion_event.position.x)
+			accept_event()
+			return
+
 		if not is_dragging_clip and not is_resizing_clip:
 			_update_hovered_resize_handle(mouse_motion_event.position)
 			_update_hovered_clip(mouse_motion_event.position)
 
 		return
 
-
 	if event is InputEventMouseButton:
 		var mouse_button_event := event as InputEventMouseButton
-
 		if mouse_button_event.button_index == MOUSE_BUTTON_LEFT:
 			if mouse_button_event.pressed:
 				grab_focus()
+
+				if _is_in_timeline_header(mouse_button_event.position):
+					_begin_playhead_scrub(mouse_button_event.position.x)
+					accept_event()
+					return
 
 				var clicked_resize_clip_index := _get_resize_handle_clip_index_at_position(mouse_button_event.position)
 
@@ -544,6 +581,11 @@ func _gui_input(event: InputEvent) -> void:
 				else:
 					queue_redraw()
 			else:
+				if is_scrubbing_playhead:
+					_end_playhead_scrub()
+					accept_event()
+					return
+
 				if is_resizing_clip:
 					_end_clip_resize()
 				else:
@@ -553,12 +595,13 @@ func _gui_input(event: InputEvent) -> void:
 				_update_hovered_clip(mouse_button_event.position)
 
 
+
 func _process(delta: float) -> void:
 	if blocked_action_flash_time > 0.0:
 		blocked_action_flash_time = max(0.0, blocked_action_flash_time - delta)
 		queue_redraw()
 
-	if is_playing:
+	if is_playing and not is_scrubbing_playhead:
 		playhead_position += _get_subdivisions_per_second() * delta
 
 		if playhead_position >= float(_get_total_subdivisions()):
@@ -584,6 +627,9 @@ func _process(delta: float) -> void:
 
 func _is_editing_blocked_by_playback() -> bool:
 	return is_playing
+
+func _is_in_timeline_header(position: Vector2) -> bool:
+	return position.y >= 0.0 and position.y <= header_height and position.x >= track_label_width
 
 #Dragging
 
