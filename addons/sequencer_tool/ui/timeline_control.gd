@@ -95,12 +95,12 @@ var resize_original_clip_index: int = -1
 var resize_original_clip_data: Dictionary = {}
 
 var editor_undo_redo: EditorUndoRedoManager = null
+var action_feedback_text: String = ""
 
 signal status_text_changed(text: String)
 signal selected_clip_changed(clip_index: int, clip_data: Dictionary)
 signal tracks_changed(track_names: Array)
-
-var action_feedback_text: String = ""
+signal sequence_changed()
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -115,13 +115,15 @@ func _ready() -> void:
 	call_deferred("_emit_tracks_changed")
 	queue_redraw()
 
-
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		queue_redraw()
 
 func set_editor_undo_redo(value: EditorUndoRedoManager) -> void:
 	editor_undo_redo = value
+
+func _emit_sequence_changed() -> void:
+	sequence_changed.emit()
 
 func _get_total_subdivisions() -> int:
 	return bars * beats_per_bar * subdivisions_per_beat
@@ -143,6 +145,7 @@ func set_bars(value: int) -> void:
 	_update_timeline_size()
 	_emit_status_text()
 	_emit_selected_clip_changed()
+	_emit_sequence_changed()
 	queue_redraw()
 
 func _get_track_color(track_index: int) -> Color:
@@ -895,6 +898,7 @@ func add_clip() -> void:
 	selected_clip_index = fake_clips.size() - 1
 	_ensure_clip_visible(selected_clip_index)
 
+	_emit_sequence_changed()
 	_emit_status_text()
 	_emit_selected_clip_changed()
 	queue_redraw()
@@ -1022,6 +1026,7 @@ func set_selected_clip_name(value: String) -> void:
 	clip["name"] = value
 	fake_clips[selected_clip_index] = clip
 
+	_emit_sequence_changed()
 	_emit_status_text()
 	_emit_selected_clip_changed()
 	queue_redraw()
@@ -1046,6 +1051,7 @@ func set_selected_clip_track(value: int) -> void:
 	clip["start"] = clamp(start, float(limits["min_start"]), float(limits["max_start"]))
 	fake_clips[selected_clip_index] = clip
 
+	_emit_sequence_changed()
 	_emit_status_text()
 	_emit_selected_clip_changed()
 	queue_redraw()
@@ -1072,6 +1078,7 @@ func set_selected_clip_start(value: float) -> void:
 	clip["start"] = clamp(value, float(limits["min_start"]), float(limits["max_start"]))
 	fake_clips[selected_clip_index] = clip
 
+	_emit_sequence_changed()
 	_emit_status_text()
 	_emit_selected_clip_changed()
 	queue_redraw()
@@ -1094,6 +1101,7 @@ func set_selected_clip_length(value: float) -> void:
 	clip["length"] = clamp(value, min_clip_length, max_length)
 	fake_clips[selected_clip_index] = clip
 
+	_emit_sequence_changed()
 	_emit_status_text()
 	_emit_selected_clip_changed()
 	queue_redraw()
@@ -1104,6 +1112,7 @@ func _set_clip_data(clip_index: int, clip_data: Dictionary) -> void:
 
 	fake_clips[clip_index] = clip_data.duplicate(true)
 	selected_clip_index = clip_index
+	_emit_sequence_changed()
 	_emit_status_text()
 	_emit_selected_clip_changed()
 	queue_redraw()
@@ -1112,6 +1121,7 @@ func _insert_clip_at(clip_index: int, clip_data: Dictionary) -> void:
 	clip_index = clamp(clip_index, 0, fake_clips.size())
 	fake_clips.insert(clip_index, clip_data.duplicate(true))
 	selected_clip_index = clip_index
+	_emit_sequence_changed()
 	_emit_status_text()
 	_emit_selected_clip_changed()
 	queue_redraw()
@@ -1137,6 +1147,7 @@ func _remove_clip_at(clip_index: int) -> void:
 	resize_original_clip_index = -1
 	resize_original_clip_data = {}
 
+	_emit_sequence_changed()
 	_emit_status_text()
 	_emit_selected_clip_changed()
 	queue_redraw()
@@ -1398,6 +1409,7 @@ func add_track() -> void:
 	track_count += 1
 	track_names.append(_create_default_track_name(track_count - 1))
 	_update_timeline_size()
+	_emit_sequence_changed()
 	_emit_tracks_changed()
 	queue_redraw()
 
@@ -1439,6 +1451,7 @@ func remove_track(track_index: int) -> void:
 
 	_reset_selection_and_interaction_state()
 	_update_timeline_size()
+	_emit_sequence_changed()
 	_emit_status_text()
 	_emit_selected_clip_changed()
 	_emit_tracks_changed()
@@ -1450,6 +1463,7 @@ func rename_track(track_index: int, value: String) -> void:
 		return
 
 	track_names[track_index] = value.strip_edges()
+	_emit_sequence_changed()
 	_emit_tracks_changed()
 	queue_redraw()
 
@@ -1481,6 +1495,7 @@ func move_track(from_index: int, to_index: int) -> void:
 
 		fake_clips[i] = clip
 
+	_emit_sequence_changed()
 	_emit_status_text()
 	_emit_selected_clip_changed()
 	_emit_tracks_changed()
@@ -1499,6 +1514,7 @@ func pause() -> void:
 
 func set_bpm(value: float) -> void:
 	bpm = max(1.0, value)
+	_emit_sequence_changed()
 	queue_redraw()
 
 func _create_demo_clips() -> void:

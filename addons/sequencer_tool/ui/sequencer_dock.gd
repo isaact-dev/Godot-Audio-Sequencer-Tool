@@ -23,6 +23,9 @@ extends VBoxContainer
 @onready var save_sequence_dialog = $SaveSequenceDialog
 @onready var bpm_slider = $HSplitContainer/SettingsHost/TimelineSettings/BPM/BPMSlider
 @onready var track_delete_confirm_dialog = $TrackDeleteConfirmDialog
+@onready var title_label = $title
+@onready var unsaved_changes_confirm_dialog = $UnsavedChangesConfirmDialog
+@onready var sequence_title_textedit = $NewSequenceDialog/MarginContainer/VBoxContainer/SequenceTitle
 
 var editor_undo_redo: EditorUndoRedoManager = null
 
@@ -31,6 +34,10 @@ var current_sequence_path: String = ""
 var _updating_clip_settings_ui: bool = false
 
 var pending_track_delete_index: int = -1
+
+var has_unsaved_changes: bool = false
+var pending_unsaved_action: String = ""
+var sequence_title: String = "Untitled Sequence"
 
 func _ready() -> void:
 	if timeline == null:
@@ -92,7 +99,11 @@ func _ready() -> void:
 	save_sequence_dialog.access = FileDialog.ACCESS_RESOURCES
 	save_sequence_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 	save_sequence_dialog.filters = PackedStringArray(["*.json ; Sequencer Tool JSON"])
-	save_sequence_dialog.current_file = "sequence.json"
+	_refresh_save_dialog_suggested_file()
+
+	_update_title_text()
+	
+	unsaved_changes_confirm_dialog.add_button("Don't save",true,"DSAVE")
 
 func set_editor_undo_redo(value: EditorUndoRedoManager) -> void:
 	editor_undo_redo = value
@@ -155,32 +166,86 @@ func _sync_timeline_settings_ui() -> void:
 	if loop_check_box.button_pressed != timeline.loop_enabled:
 		loop_check_box.button_pressed = timeline.loop_enabled
 
+func _update_title_text() -> void:
+	title_label.text = "Audio Sequencer * - "+str(sequence_title) if has_unsaved_changes else "Audio Sequencer - "+str(sequence_title)
+
+func _resolve_loaded_sequence_title(data: Dictionary, path: String) -> String:
+	var loaded_title := str(data.get("title", "")).strip_edges()
+	if not loaded_title.is_empty():
+		return loaded_title
+	return path.get_file().get_basename()
+
+func _build_suggested_sequence_file_name() -> String:
+	var file_name := sequence_title.strip_edges()
+	if file_name.is_empty():
+		file_name = "Untitled Sequence"
+	file_name = file_name.replace(" ", "_")
+	file_name = file_name.replace("/", "_")
+	file_name = file_name.replace("\\", "_")
+	file_name = file_name.replace(":", " -")
+	file_name = file_name.replace("*", "_")
+	file_name = file_name.replace("?", "")
+	file_name = file_name.replace("\"", "'")
+	file_name = file_name.replace("<", "(")
+	file_name = file_name.replace(">", ")")
+	file_name = file_name.replace("|", "-")
+	file_name = file_name.to_lower()
+	return "%s.json" % file_name
+
+func _refresh_save_dialog_suggested_file() -> void:
+	if save_sequence_dialog == null:
+		return
+	save_sequence_dialog.current_file = _build_suggested_sequence_file_name()
+
+func _mark_sequence_dirty() -> void:
+	if has_unsaved_changes:
+		return
+
+	has_unsaved_changes = true
+	_update_title_text()
+
+func _mark_sequence_clean() -> void:
+	has_unsaved_changes = false
+	_update_title_text()
+
+func _request_new_sequence() -> void:
+	new_bars_spin.value = timeline.bars
+	new_beats_spin.value = timeline.beats_per_bar
+	new_subdivisions_spin.value = timeline.subdivisions_per_beat
+	sequence_title_textedit.text = "New Sequence"
+	new_sequence_dialog.popup_centered()
+
+func _request_open_sequence() -> void:
+	open_sequence_dialog.popup_centered_ratio()
+
 func _save_sequence_to_path(path: String) -> void:
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
 		push_error("Failed to open file for saving: %s" % path)
 		return
-
 	var sequence_data = timeline.get_sequence_data()
+	sequence_data["title"] = sequence_title
 	file.store_string(JSON.stringify(sequence_data, "\t"))
 	current_sequence_path = path
+	_mark_sequence_clean()
 
 func _load_sequence_from_path(path: String) -> void:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		push_error("Failed to open file for loading: %s" % path)
 		return
-
 	var content := file.get_as_text()
 	var parsed = JSON.parse_string(content)
-
 	if not parsed is Dictionary:
 		push_error("Invalid sequence file: %s" % path)
 		return
-
 	timeline.load_sequence_data(parsed)
+	sequence_title = _resolve_loaded_sequence_title(parsed, path)
+	_refresh_save_dialog_suggested_file()
 	current_sequence_path = path
+	_mark_sequence_clean()
 	_sync_timeline_settings_ui()
+	_update_title_text()
 
 func _on_new_sequence_dialog_confirmed() -> void:
 	timeline.create_new_sequence(
@@ -188,15 +253,31 @@ func _on_new_sequence_dialog_confirmed() -> void:
 		int(new_beats_spin.value),
 		int(new_subdivisions_spin.value)
 	)
-
+	sequence_title = sequence_title_textedit.text.strip_edges()
+	if sequence_title.is_empty():
+		sequence_title = "Untitled Sequence"
 	current_sequence_path = ""
+	_refresh_save_dialog_suggested_file()
 	_sync_timeline_settings_ui()
+	_mark_sequence_clean()
+	_update_title_text()
 
 func _on_open_sequence_dialog_file_selected(path: String) -> void:
 	_load_sequence_from_path(path)
+	_update_title_text()
 
 func _on_save_sequence_dialog_file_selected(path: String) -> void:
 	_save_sequence_to_path(path)
+	_update_title_text()
+	if not pending_unsaved_action.is_empty():
+		match pending_unsaved_action:
+			"new":
+				_request_new_sequence()
+			"open":
+				_request_open_sequence()
+
+		pending_unsaved_action = ""
+
 
 func _on_button_add_clip_pressed() -> void:
 	timeline.add_clip()
@@ -280,21 +361,26 @@ func _on_track_name_focus_exited(track_index: int, line_edit: LineEdit) -> void:
 	_refresh_tracks_list(timeline.get_track_names())
 
 func _on_button_new_pressed():
-	new_bars_spin.value = timeline.bars
-	new_beats_spin.value = timeline.beats_per_bar
-	new_subdivisions_spin.value = timeline.subdivisions_per_beat
-	new_sequence_dialog.popup_centered()
+	if has_unsaved_changes:
+		pending_unsaved_action = "new"
+		unsaved_changes_confirm_dialog.popup_centered()
+		return
 
+	_request_new_sequence()
 
 func _on_button_open_pressed():
-	open_sequence_dialog.popup_centered_ratio()
+	if has_unsaved_changes:
+		pending_unsaved_action = "open"
+		unsaved_changes_confirm_dialog.popup_centered()
+		return
+
+	_request_open_sequence()
 
 func _on_button_save_pressed():
 	if current_sequence_path.is_empty():
+		_refresh_save_dialog_suggested_file()
 		save_sequence_dialog.popup_centered_ratio()
 		return
-
-	_save_sequence_to_path(current_sequence_path)
 
 
 func _on_button_play_pressed():
@@ -359,3 +445,38 @@ func _on_track_delete_confirm_dialog_canceled():
 
 func _on_loop_check_box_toggled(toggled_on: bool) -> void:
 	timeline.set_loop_enabled(toggled_on)
+
+
+func _on_timeline_control_sequence_changed() -> void:
+	_mark_sequence_dirty()
+
+
+func _on_unsaved_changes_confirm_dialog_confirmed():
+	if current_sequence_path.is_empty():
+		_refresh_save_dialog_suggested_file()
+		save_sequence_dialog.popup_centered_ratio()
+		return
+
+	_save_sequence_to_path(current_sequence_path)
+
+	match pending_unsaved_action:
+		"new":
+			_request_new_sequence()
+		"open":
+			_request_open_sequence()
+
+	pending_unsaved_action = ""
+
+
+
+func _on_unsaved_changes_confirm_dialog_custom_action(action: StringName) -> void:
+	if action != "dont_save":
+		return
+
+	match pending_unsaved_action:
+		"new":
+			_request_new_sequence()
+		"open":
+			_request_open_sequence()
+
+	pending_unsaved_action = ""

@@ -13,7 +13,7 @@ script = ExtResource("1_o187q")
 
 [node name="title" type="Label" parent="." unique_id=494619691]
 layout_mode = 2
-text = "Audio Sequencer"
+text = "Audio Sequencer * - Untitled Sequence"
 
 [node name="ToolBar" type="HBoxContainer" parent="." unique_id=518287640]
 layout_mode = 2
@@ -57,18 +57,18 @@ layout_mode = 2
 disabled = true
 text = "Delete Clip"
 
-[node name="HBoxContainer" type="HBoxContainer" parent="." unique_id=1938819148]
+[node name="StatusBar" type="HBoxContainer" parent="." unique_id=1938819148]
 layout_mode = 2
 
-[node name="StatusLabel" type="Label" parent="HBoxContainer" unique_id=1230435216]
+[node name="StatusLabel" type="Label" parent="StatusBar" unique_id=1230435216]
 layout_mode = 2
 text = "Selected: None | Start: - | Length: - | Snap: On"
 
-[node name="StatusSpacer" type="Control" parent="HBoxContainer" unique_id=1075552375]
+[node name="StatusSpacer" type="Control" parent="StatusBar" unique_id=1075552375]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="LoopCheckBox" type="CheckBox" parent="HBoxContainer" unique_id=581786267]
+[node name="LoopCheckBox" type="CheckBox" parent="StatusBar" unique_id=581786267]
 layout_mode = 2
 size_flags_horizontal = 8
 text = "Loop   "
@@ -158,7 +158,7 @@ text = "BPM"
 layout_mode = 2
 min_value = 1.0
 max_value = 300.0
-value = 121.0
+value = 120.0
 
 [node name="Bars" type="VBoxContainer" parent="HSplitContainer/SettingsHost/TimelineSettings" unique_id=476687428]
 layout_mode = 2
@@ -250,6 +250,13 @@ offset_bottom = 40.0
 [node name="VBoxContainer" type="VBoxContainer" parent="NewSequenceDialog/MarginContainer" unique_id=316560289]
 layout_mode = 2
 
+[node name="SequenceTitle" type="TextEdit" parent="NewSequenceDialog/MarginContainer/VBoxContainer" unique_id=1301491908]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+text = "New Sequence"
+placeholder_text = "Title"
+emoji_menu_enabled = false
+
 [node name="NewBarsLabel" type="Label" parent="NewSequenceDialog/MarginContainer/VBoxContainer" unique_id=1678006630]
 layout_mode = 2
 text = "Bars"
@@ -295,6 +302,11 @@ dialog_text = "Deleting a track will permanently delete all clips on that track.
 
 This action cannot be undone."
 
+[node name="UnsavedChangesConfirmDialog" type="ConfirmationDialog" parent="." unique_id=1941087975]
+title = "Unsaved Changes"
+ok_button_text = "Save"
+dialog_text = "You have unsaved changes. Save them and continue?"
+
 [connection signal="pressed" from="ToolBar/ButtonNew" to="." method="_on_button_new_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonOpen" to="." method="_on_button_open_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonSave" to="." method="_on_button_save_pressed"]
@@ -302,7 +314,7 @@ This action cannot be undone."
 [connection signal="pressed" from="ToolBar/ButtonPause" to="." method="_on_button_pause_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonAddClip" to="." method="_on_button_add_clip_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonDeleteClip" to="." method="_on_button_delete_clip_pressed"]
-[connection signal="toggled" from="HBoxContainer/LoopCheckBox" to="." method="_on_loop_check_box_toggled"]
+[connection signal="toggled" from="StatusBar/LoopCheckBox" to="." method="_on_loop_check_box_toggled"]
 [connection signal="pressed" from="HSplitContainer/SettingsHost/ClipSettings/HBoxContainer/ClipCloseButton" to="." method="_on_clip_close_button_pressed"]
 [connection signal="text_changed" from="HSplitContainer/SettingsHost/ClipSettings/ClipNameEdit" to="." method="_on_clip_name_edit_text_changed"]
 [connection signal="value_changed" from="HSplitContainer/SettingsHost/ClipSettings/ClipTrackSpin" to="." method="_on_clip_track_spin_value_changed"]
@@ -313,6 +325,7 @@ This action cannot be undone."
 [connection signal="pressed" from="HSplitContainer/SettingsHost/TimelineSettings/Tracks/TrackHeader/TrackAddButton" to="." method="_on_track_add_button_pressed"]
 [connection signal="mouse_exited" from="HSplitContainer/TimelineBox/TimelinePanel" to="HSplitContainer/TimelineBox/TimelinePanel/ScrollContainer/TimelineControl" method="_on_timeline_panel_mouse_exited"]
 [connection signal="selected_clip_changed" from="HSplitContainer/TimelineBox/TimelinePanel/ScrollContainer/TimelineControl" to="." method="_on_timeline_control_selected_clip_changed"]
+[connection signal="sequence_changed" from="HSplitContainer/TimelineBox/TimelinePanel/ScrollContainer/TimelineControl" to="." method="_on_timeline_control_sequence_changed"]
 [connection signal="status_text_changed" from="HSplitContainer/TimelineBox/TimelinePanel/ScrollContainer/TimelineControl" to="." method="_on_timeline_control_status_text_changed"]
 [connection signal="tracks_changed" from="HSplitContainer/TimelineBox/TimelinePanel/ScrollContainer/TimelineControl" to="." method="_on_timeline_control_tracks_changed"]
 [connection signal="confirmed" from="NewSequenceDialog" to="." method="_on_new_sequence_dialog_confirmed"]
@@ -320,3 +333,5 @@ This action cannot be undone."
 [connection signal="file_selected" from="SaveSequenceDialog" to="." method="_on_save_sequence_dialog_file_selected"]
 [connection signal="canceled" from="TrackDeleteConfirmDialog" to="." method="_on_track_delete_confirm_dialog_canceled"]
 [connection signal="confirmed" from="TrackDeleteConfirmDialog" to="." method="_on_track_delete_confirm_dialog_confirmed"]
+[connection signal="confirmed" from="UnsavedChangesConfirmDialog" to="." method="_on_unsaved_changes_confirm_dialog_confirmed"]
+[connection signal="custom_action" from="UnsavedChangesConfirmDialog" to="." method="_on_unsaved_changes_confirm_dialog_custom_action"]
