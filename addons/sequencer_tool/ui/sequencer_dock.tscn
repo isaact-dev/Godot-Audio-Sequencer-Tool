@@ -57,9 +57,22 @@ layout_mode = 2
 disabled = true
 text = "Delete Clip"
 
-[node name="StatusLabel" type="Label" parent="." unique_id=1230435216]
+[node name="HBoxContainer" type="HBoxContainer" parent="." unique_id=1938819148]
+layout_mode = 2
+
+[node name="StatusLabel" type="Label" parent="HBoxContainer" unique_id=1230435216]
 layout_mode = 2
 text = "Selected: None | Start: - | Length: - | Snap: On"
+
+[node name="StatusSpacer" type="Control" parent="HBoxContainer" unique_id=1075552375]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LoopCheckBox" type="CheckBox" parent="HBoxContainer" unique_id=581786267]
+layout_mode = 2
+size_flags_horizontal = 8
+text = "Loop   "
+alignment = 2
 
 [node name="HSplitContainer" type="HSplitContainer" parent="." unique_id=675055457]
 layout_mode = 2
@@ -226,7 +239,6 @@ track_count = 7
 auto_scroll_edge_threshold = 12.0
 auto_scroll_speed = 12.0
 min_clip_length = 0.9
-bpm = 121.0
 
 [node name="NewSequenceDialog" type="ConfirmationDialog" parent="." unique_id=406818455]
 title = "New Sequence"
@@ -290,6 +302,7 @@ This action cannot be undone."
 [connection signal="pressed" from="ToolBar/ButtonPause" to="." method="_on_button_pause_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonAddClip" to="." method="_on_button_add_clip_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonDeleteClip" to="." method="_on_button_delete_clip_pressed"]
+[connection signal="toggled" from="HBoxContainer/LoopCheckBox" to="." method="_on_loop_check_box_toggled"]
 [connection signal="pressed" from="HSplitContainer/SettingsHost/ClipSettings/HBoxContainer/ClipCloseButton" to="." method="_on_clip_close_button_pressed"]
 [connection signal="text_changed" from="HSplitContainer/SettingsHost/ClipSettings/ClipNameEdit" to="." method="_on_clip_name_edit_text_changed"]
 [connection signal="value_changed" from="HSplitContainer/SettingsHost/ClipSettings/ClipTrackSpin" to="." method="_on_clip_track_spin_value_changed"]

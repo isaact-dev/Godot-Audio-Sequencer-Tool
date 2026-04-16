@@ -1,0 +1,30 @@
+{
+	"bars": 3,
+	"beats_per_bar": 3,
+	"bpm": 60.0,
+	"clips": [
+		{
+			"length": 4.0,
+			"name": "New Clip",
+			"start": 0.0,
+			"track": 0
+		},
+		{
+			"length": 4.0,
+			"name": "New Clip",
+			"start": 7.0,
+			"track": 0
+		}
+	],
+	"subdivisions_per_beat": 20,
+	"track_count": 7,
+	"track_names": [
+		"Track 1",
+		"Track 2",
+		"Track 3",
+		"Track 4",
+		"Track 5",
+		"Track 6",
+		"Track 7"
+	]
+}

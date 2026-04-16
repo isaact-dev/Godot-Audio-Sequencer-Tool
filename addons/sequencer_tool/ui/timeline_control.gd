@@ -22,6 +22,7 @@ class_name TimelineControl
 @export var track_label_width: float = 70.0
 @export var blocked_action_flash_duration: float = 0.18
 @export var bpm: float = 120.0
+@export var playhead_follow_margin: float = 48.0
 
 var background_color := Color(0.10, 0.10, 0.12)
 var header_color := Color(0.16, 0.16, 0.20)
@@ -71,6 +72,7 @@ var playhead_position: float = 0.0
 var is_scrubbing_playhead: bool = false
 var was_playing_before_scrub: bool = false
 
+var loop_enabled: bool = false
 
 var is_dragging_clip: bool = false
 var dragged_clip_index: int = -1
@@ -366,6 +368,11 @@ func set_playhead_position(value: float) -> void:
 	playhead_position = clamp(value, 0.0, float(_get_total_subdivisions()))
 	queue_redraw()
 
+func set_loop_enabled(value: bool) -> void:
+	loop_enabled = value
+	_emit_status_text()
+	queue_redraw()
+
 func _update_playhead_from_mouse_x(mouse_x: float) -> void:
 	set_playhead_position(_x_to_timeline(mouse_x))
 
@@ -386,6 +393,18 @@ func _end_playhead_scrub() -> void:
 
 	was_playing_before_scrub = false
 	queue_redraw()
+
+func _ensure_playhead_visible_during_playback() -> void:
+	var playhead_x := _timeline_to_x(playhead_position)
+
+	var playhead_rect := Rect2(
+		playhead_x - 1.0,
+		0.0,
+		2.0,
+		size.y
+	)
+
+	_ensure_rect_visible_horizontally(playhead_rect, playhead_follow_margin)
 
 func _create_default_track_name(track_index: int) -> String:
 	return "Track %d" % [track_index + 1]
@@ -606,8 +625,11 @@ func _process(delta: float) -> void:
 
 		if playhead_position >= float(_get_total_subdivisions()):
 			playhead_position = 0.0
-			is_playing = false
 
+			if not loop_enabled:
+				is_playing = false
+
+		_ensure_playhead_visible_during_playback()
 		queue_redraw()
 
 	if not is_dragging_clip and not is_resizing_clip:
@@ -856,6 +878,7 @@ func duplicate_selected_clip() -> void:
 	editor_undo_redo.add_do_method(self, "_insert_clip_at", insert_index, duplicated_clip)
 	editor_undo_redo.add_undo_method(self, "_remove_clip_at", insert_index)
 	editor_undo_redo.commit_action()
+
 
 func delete_selected_clip() -> void:
 	if _is_editing_blocked_by_playback():

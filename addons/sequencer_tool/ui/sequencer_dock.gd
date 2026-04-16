@@ -1,7 +1,8 @@
 @tool
 extends VBoxContainer
 
-@onready var status_label = $StatusLabel
+@onready var status_label = $StatusBar/StatusLabel
+@onready var loop_check_box = $StatusBar/LoopCheckBox
 @onready var timeline = $HSplitContainer/TimelineBox/TimelinePanel/ScrollContainer/TimelineControl
 @onready var name_edit = $HSplitContainer/SettingsHost/ClipSettings/ClipNameEdit
 @onready var track_spin = $HSplitContainer/SettingsHost/ClipSettings/ClipTrackSpin
@@ -57,6 +58,7 @@ func _ready() -> void:
 	clip_settings.visible = false
 	timeline_settings.visible = true
 
+	loop_check_box.button_pressed = timeline.loop_enabled
 
 	bars_slider.min_value = 1
 	bars_slider.step = 1
@@ -149,6 +151,9 @@ func _sync_timeline_settings_ui() -> void:
 
 	if bpm_slider.value != timeline.bpm:
 		bpm_slider.value = timeline.bpm
+
+	if loop_check_box.button_pressed != timeline.loop_enabled:
+		loop_check_box.button_pressed = timeline.loop_enabled
 
 func _save_sequence_to_path(path: String) -> void:
 	var file := FileAccess.open(path, FileAccess.WRITE)
@@ -350,3 +355,7 @@ func _on_track_delete_confirm_dialog_confirmed():
 
 func _on_track_delete_confirm_dialog_canceled():
 	pending_track_delete_index = -1
+
+
+func _on_loop_check_box_toggled(toggled_on: bool) -> void:
+	timeline.set_loop_enabled(toggled_on)
