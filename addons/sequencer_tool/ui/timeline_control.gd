@@ -315,6 +315,23 @@ func _find_available_start(track_index: int, clip_length: float, preferred_start
 
 	return candidate_start
 
+func _find_first_valid_start(track_index: int, clip_length: float, exclude_clip_index: int = -1) -> float:
+	return _find_available_start(track_index, clip_length, 0.0, exclude_clip_index)
+
+func _can_place_clip_at(track_index: int, exclude_clip_index: int, clip_length: float, start_position: float) -> bool:
+	var limits := _get_clip_start_limits(track_index, exclude_clip_index, clip_length, start_position)
+
+	if not bool(limits["has_room"]):
+		return false
+
+	var resolved_start := clamp(
+		start_position,
+		float(limits["min_start"]),
+		float(limits["max_start"])
+	)
+
+	return is_equal_approx(resolved_start, start_position)
+
 func _build_status_text() -> String:
 	var snap_text := "On" if _is_snap_active() else "Off"
 	var base_text := ""
@@ -525,6 +542,14 @@ func create_new_sequence(new_bars: int, new_beats_per_bar: int, new_subdivisions
 		"clips": []
 	})
 
+func _is_mouse_over_timeline_lanes(position: Vector2) -> bool:
+	return (
+		position.x >= track_label_width
+		and position.x <= size.x
+		and position.y >= header_height
+		and position.y <= size.y
+	)
+
 func _gui_input(event: InputEvent) -> void:
 	_update_temporary_snap_override_from_event(event)
 	if event is InputEventKey:
@@ -536,6 +561,10 @@ func _gui_input(event: InputEvent) -> void:
 				return
 			if key_event.ctrl_pressed and key_event.keycode == KEY_D:
 					duplicate_selected_clip()
+					accept_event()
+					return
+			if key_event.ctrl_pressed and key_event.keycode == KEY_A:
+					add_clip()
 					accept_event()
 					return
 			if key_event.keycode == KEY_SPACE:
@@ -612,7 +641,19 @@ func _gui_input(event: InputEvent) -> void:
 
 				_update_hovered_resize_handle(mouse_button_event.position)
 				_update_hovered_clip(mouse_button_event.position)
+		if mouse_button_event.button_index == MOUSE_BUTTON_RIGHT:
+			if mouse_button_event.pressed:
+				grab_focus()
 
+				if _is_in_timeline_header(mouse_button_event.position) or _is_mouse_over_timeline_lanes(mouse_button_event.position):
+					_begin_playhead_scrub(mouse_button_event.position.x)
+					accept_event()
+					return
+			else:
+				if is_scrubbing_playhead:
+					_end_playhead_scrub()
+					accept_event()
+					return
 
 
 func _process(delta: float) -> void:
@@ -698,6 +739,28 @@ func _begin_clip_drag(clip_index: int, mouse_position: Vector2) -> void:
 	hovered_clip_index = -1
 	_update_cursor_shape()
 	queue_redraw()
+
+func _get_default_clip_insertion_target(clip_length: float) -> Dictionary:
+	var mouse_position := get_local_mouse_position()
+
+	if selected_clip_index >= 0 and selected_clip_index < fake_clips.size():
+		var selected_clip := fake_clips[selected_clip_index]
+
+		if selected_clip.has("track") and selected_clip.has("start") and selected_clip.has("length"):
+			return {
+				"track": int(selected_clip["track"]),
+				"start": _snap_timeline_position(float(selected_clip["start"]) + float(selected_clip["length"]))
+			}
+
+	var playhead_track := 0
+
+	if _is_mouse_over_timeline_lanes(mouse_position):
+		playhead_track = _y_to_track_index(mouse_position.y)
+
+	return {
+		"track": playhead_track,
+		"start": _snap_timeline_position(playhead_position)
+	}
 
 
 func _update_clip_drag(mouse_position: Vector2) -> void:
@@ -803,20 +866,17 @@ func add_clip() -> void:
 
 	default_length = min(default_length, total_subdivisions)
 
-	var new_track := 0
-	var new_start := 0.0
+	var insertion_target := _get_default_clip_insertion_target(default_length)
+	var new_track := int(insertion_target["track"])
+	var desired_start := float(insertion_target["start"])
+	var new_start := desired_start
 
-	if selected_clip_index >= 0 and selected_clip_index < fake_clips.size():
-		var selected_clip := fake_clips[selected_clip_index]
+	if not _can_place_clip_at(new_track, -1, default_length, desired_start):
+		new_start = _find_first_valid_start(new_track, default_length)
 
-		if selected_clip.has("track"):
-			new_track = clamp(int(selected_clip["track"]), 0, track_count - 1)
-
-		if selected_clip.has("start") and selected_clip.has("length"):
-			new_start = float(selected_clip["start"]) + float(selected_clip["length"])
-
-	new_start = _snap_timeline_position(new_start)
-	new_start = _find_available_start(new_track, default_length, new_start)
+		if new_start < 0.0:
+			_show_blocked_action_feedback("No room to add a clip on this track.")
+			return
 
 	if new_start < 0.0:
 		_show_blocked_action_feedback("No room to add a clip on this track.")
@@ -833,6 +893,7 @@ func add_clip() -> void:
 
 	fake_clips.append(new_clip)
 	selected_clip_index = fake_clips.size() - 1
+	_ensure_clip_visible(selected_clip_index)
 
 	_emit_status_text()
 	_emit_selected_clip_changed()
@@ -856,14 +917,16 @@ func duplicate_selected_clip() -> void:
 	var source_start := float(source_clip["start"])
 	var source_length := float(source_clip["length"])
 	var total_subdivisions := float(_get_total_subdivisions())
-	var duplicated_start := source_start + source_length
-	duplicated_start = _snap_timeline_position(duplicated_start)
-	duplicated_start = _find_available_start(int(source_clip["track"]), source_length, duplicated_start)
+	var desired_start := _snap_timeline_position(source_start + source_length)
+	var duplicate_track := int(source_clip["track"])
+	var duplicated_start := desired_start
 
-	if duplicated_start < 0.0:
-		_show_blocked_action_feedback("No room to duplicate this clip on its track.")
-		return
+	if not _can_place_clip_at(duplicate_track, -1, source_length, desired_start):
+		duplicated_start = _find_first_valid_start(duplicate_track, source_length)
 
+		if duplicated_start < 0.0:
+			_show_blocked_action_feedback("No room to duplicate this clip on its track.")
+			return
 
 	duplicated_clip["start"] = duplicated_start
 	duplicated_clip["name"] = "%s Copy" % str(source_clip.get("name", "Clip"))
@@ -872,12 +935,14 @@ func duplicate_selected_clip() -> void:
 
 	if editor_undo_redo == null:
 		_insert_clip_at(insert_index, duplicated_clip)
+		_ensure_clip_visible(selected_clip_index)
 		return
 
 	editor_undo_redo.create_action("Duplicate Clip")
 	editor_undo_redo.add_do_method(self, "_insert_clip_at", insert_index, duplicated_clip)
 	editor_undo_redo.add_undo_method(self, "_remove_clip_at", insert_index)
 	editor_undo_redo.commit_action()
+	_ensure_clip_visible(selected_clip_index)
 
 
 func delete_selected_clip() -> void:
@@ -1114,6 +1179,17 @@ func _ensure_rect_visible_horizontally(rect: Rect2, margin: float = 0.0) -> void
 		target_scroll = rect.end.x + margin - scroll_container.size.x
 
 	_set_horizontal_scroll(target_scroll)
+
+func _ensure_clip_visible(clip_index: int) -> void:
+	if clip_index < 0 or clip_index >= fake_clips.size():
+		return
+
+	var clip := fake_clips[clip_index]
+	if not clip.has("track") or not clip.has("start") or not clip.has("length"):
+		return
+
+	var rect := _get_clip_rect(clip)
+	_ensure_rect_visible_horizontally(rect, visible_scroll_margin)
 
 
 func _auto_scroll_during_drag(mouse_position: Vector2, delta: float) -> void:

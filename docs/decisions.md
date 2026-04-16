@@ -205,3 +205,15 @@ When clip creation or duplication fails because no valid open space exists, ther
 
 Deleting a track should remove all clips on that track, with clip removal performed in reverse index order for safety.
 Deleting a track should require an explicit confirmation because it is not undoable.
+
+## 2026‑04‑16 — Insertion anchoring
+
+### Decision
+
+Clip creation should be based on an explicit insertion anchor instead of at the start of track 1.
+
+### Insertion priority
+
+1. Selected clip end
+2. Playhead and mouse position
+3. Start of timeline
