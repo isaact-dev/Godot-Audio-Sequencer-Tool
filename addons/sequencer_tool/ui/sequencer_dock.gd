@@ -400,6 +400,7 @@ func _on_timeline_control_status_text_changed(text: String) -> void:
 func _on_timeline_control_selected_clip_changed(clip_index: int, clip_data: Dictionary) -> void:
 	if clip_index < 0 or clip_data.is_empty():
 		_clear_clip_settings_ui()
+		delete_clip_button.disabled = timeline.selected_clip_indices.is_empty()
 		timeline_settings.visible = true
 		clip_settings.visible = false
 		return

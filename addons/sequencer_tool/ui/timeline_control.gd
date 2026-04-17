@@ -57,6 +57,7 @@ var track_names: Array[String] = []
 var track_colors: Array[Color] = []
 
 var selected_clip_index: int = -1
+var selected_clip_indices: Array[int] = []
 var hovered_clip_index: int = -1
 var hovered_resize_clip_index: int = -1
 
@@ -445,6 +446,7 @@ func _emit_tracks_changed() -> void:
 	tracks_changed.emit(get_track_names())
 
 func _reset_selection_and_interaction_state() -> void:
+	selected_clip_indices.clear()
 	selected_clip_index = -1
 	hovered_clip_index = -1
 	hovered_resize_clip_index = -1
@@ -462,6 +464,25 @@ func _reset_selection_and_interaction_state() -> void:
 	resize_start_mouse_position = Vector2.ZERO
 	resize_original_clip_index = -1
 	resize_original_clip_data = {}
+
+func _clear_selection() -> void:
+	selected_clip_indices.clear()
+	selected_clip_index = -1
+
+func _set_single_selection(clip_index: int) -> void:
+	selected_clip_indices = [clip_index]
+	selected_clip_index = clip_index
+
+func _toggle_selection(clip_index: int) -> void:
+	if selected_clip_indices.has(clip_index):
+		selected_clip_indices.erase(clip_index)
+	else:
+		selected_clip_indices.append(clip_index)
+
+	if selected_clip_indices.is_empty():
+		selected_clip_index = -1
+	else:
+		selected_clip_index = selected_clip_indices.back()
 
 func get_sequence_data() -> Dictionary:
 	var serialized_clips: Array[Dictionary] = []
@@ -572,21 +593,21 @@ func _gui_input(event: InputEvent) -> void:
 					return
 			if key_event.keycode == KEY_SPACE:
 				is_playing = !is_playing
-		if key_event.keycode == KEY_LEFT:
-			if key_event.shift_pressed:
-				_nudge_selected_clip(-keyboard_micro_nudge_amount, false)
-			else:
-				_nudge_selected_clip(-keyboard_nudge_amount, true)
-			accept_event()
-			return
-
-		if key_event.keycode == KEY_RIGHT:
-			if key_event.shift_pressed:
-				_nudge_selected_clip(keyboard_micro_nudge_amount, false)
-			else:
-				_nudge_selected_clip(keyboard_nudge_amount, true)
-			accept_event()
-			return
+		if key_event.pressed:
+			if key_event.keycode == KEY_LEFT:
+				if key_event.shift_pressed:
+					_nudge_selected_clip(-keyboard_micro_nudge_amount, false)
+				else:
+					_nudge_selected_clip(-keyboard_nudge_amount, true)
+				accept_event()
+				return
+			if key_event.keycode == KEY_RIGHT:
+				if key_event.shift_pressed:
+					_nudge_selected_clip(keyboard_micro_nudge_amount, false)
+				else:
+					_nudge_selected_clip(keyboard_nudge_amount, true)
+				accept_event()
+				return
 
 	if event is InputEventMouseMotion:
 		var mouse_motion_event := event as InputEventMouseMotion
@@ -623,7 +644,18 @@ func _gui_input(event: InputEvent) -> void:
 
 				var clicked_clip_index := _get_clip_index_at_position(mouse_button_event.position)
 
-				selected_clip_index = clicked_clip_index
+				if clicked_clip_index == -1:
+					_clear_selection()
+					_emit_status_text()
+					_emit_selected_clip_changed()
+					queue_redraw()
+					return
+
+				if mouse_button_event.shift_pressed:
+					_toggle_selection(clicked_clip_index)
+				else:
+					_set_single_selection(clicked_clip_index)
+
 				_emit_status_text()
 				_emit_selected_clip_changed()
 
@@ -953,20 +985,29 @@ func delete_selected_clip() -> void:
 	if _is_editing_blocked_by_playback():
 		return
 
-	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
+	var clip_indices: Array[int] = []
+	for clip_index in selected_clip_indices:
+		if clip_index >= 0 and clip_index < fake_clips.size():
+			clip_indices.append(clip_index)
+
+	if clip_indices.is_empty():
 		return
 
-	var clip_index := selected_clip_index
-	var clip_data := fake_clips[clip_index].duplicate(true)
+	clip_indices.sort()
 
 	if editor_undo_redo == null:
-		_remove_clip_at(clip_index)
+		for i in range(clip_indices.size() - 1, -1, -1):
+			_remove_clip_at(clip_indices[i])
 		return
 
-	editor_undo_redo.create_action("Delete Clip")
-	editor_undo_redo.add_do_method(self, "_remove_clip_at", clip_index)
-	editor_undo_redo.add_undo_method(self, "_insert_clip_at", clip_index, clip_data)
+	editor_undo_redo.create_action("Delete Clips" if clip_indices.size() > 1 else "Delete Clip")
+	for i in range(clip_indices.size() - 1, -1, -1):
+		var clip_index := clip_indices[i]
+		var clip_data := fake_clips[clip_index].duplicate(true)
+		editor_undo_redo.add_do_method(self, "_remove_clip_at", clip_index)
+		editor_undo_redo.add_undo_method(self, "_insert_clip_at", clip_index, clip_data)
 	editor_undo_redo.commit_action()
+
 
 
 func _nudge_selected_clip(amount: float, use_snap: bool) -> void:
@@ -1131,6 +1172,7 @@ func _remove_clip_at(clip_index: int) -> void:
 		return
 
 	fake_clips.remove_at(clip_index)
+	selected_clip_indices.clear()
 	selected_clip_index = -1
 	hovered_clip_index = -1
 	hovered_resize_clip_index = -1
@@ -1393,7 +1435,10 @@ func _get_selected_clip_data() -> Dictionary:
 	return fake_clips[selected_clip_index].duplicate(true)
 
 func _emit_selected_clip_changed() -> void:
-	selected_clip_changed.emit(selected_clip_index, _get_selected_clip_data())
+	if selected_clip_indices.size() == 1:
+		selected_clip_changed.emit(selected_clip_index, _get_selected_clip_data())
+	else:
+		selected_clip_changed.emit(-1, {})
 
 func clear_selected_clip() -> void:
 	if selected_clip_index == -1:
@@ -1744,7 +1789,7 @@ func _draw_fake_clips() -> void:
 
 		draw_rect(rect, color, true)
 
-		if i == selected_clip_index:
+		if selected_clip_indices.has(i):
 			draw_rect(rect, selected_clip_overlay_color, true)
 			draw_rect(rect, selected_clip_outline_color, false, 2.0)
 		elif i == hovered_clip_index:
