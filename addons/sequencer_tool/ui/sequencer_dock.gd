@@ -26,6 +26,9 @@ extends VBoxContainer
 @onready var title_label = $title
 @onready var unsaved_changes_confirm_dialog = $UnsavedChangesConfirmDialog
 @onready var sequence_title_textedit = $NewSequenceDialog/MarginContainer/VBoxContainer/SequenceTitle
+@onready var sequence_title_edit = $HSplitContainer/SettingsHost/TimelineSettings/TitleEdit
+
+
 
 var editor_undo_redo: EditorUndoRedoManager = null
 
@@ -168,6 +171,8 @@ func _sync_timeline_settings_ui() -> void:
 
 func _update_title_text() -> void:
 	title_label.text = "Audio Sequencer * - "+str(sequence_title) if has_unsaved_changes else "Audio Sequencer - "+str(sequence_title)
+	if sequence_title_edit != null and not sequence_title_edit.has_focus() and sequence_title_edit.text != sequence_title:
+		sequence_title_edit.text = sequence_title
 
 func _resolve_loaded_sequence_title(data: Dictionary, path: String) -> String:
 	var loaded_title := str(data.get("title", "")).strip_edges()
@@ -360,7 +365,7 @@ func _on_track_name_focus_exited(track_index: int, line_edit: LineEdit) -> void:
 	timeline.rename_track(track_index, line_edit.text)
 	_refresh_tracks_list(timeline.get_track_names())
 
-func _on_button_new_pressed():
+func _on_button_new_pressed() -> void:
 	if has_unsaved_changes:
 		pending_unsaved_action = "new"
 		unsaved_changes_confirm_dialog.popup_centered()
@@ -368,7 +373,7 @@ func _on_button_new_pressed():
 
 	_request_new_sequence()
 
-func _on_button_open_pressed():
+func _on_button_open_pressed() -> void:
 	if has_unsaved_changes:
 		pending_unsaved_action = "open"
 		unsaved_changes_confirm_dialog.popup_centered()
@@ -376,17 +381,17 @@ func _on_button_open_pressed():
 
 	_request_open_sequence()
 
-func _on_button_save_pressed():
+func _on_button_save_pressed() -> void:
 	if current_sequence_path.is_empty():
 		_refresh_save_dialog_suggested_file()
 		save_sequence_dialog.popup_centered_ratio()
 		return
+	_save_sequence_to_path(current_sequence_path)
 
-
-func _on_button_play_pressed():
+func _on_button_play_pressed() -> void:
 	timeline.play()
 
-func _on_button_pause_pressed():
+func _on_button_pause_pressed() -> void:
 	timeline.pause()
 
 func _on_timeline_control_status_text_changed(text: String) -> void:
@@ -431,7 +436,7 @@ func _on_bpm_slider_value_changed(value):
 	timeline.set_bpm(value)
 
 
-func _on_track_delete_confirm_dialog_confirmed():
+func _on_track_delete_confirm_dialog_confirmed() -> void:
 	if pending_track_delete_index < 0:
 		return
 
@@ -439,7 +444,7 @@ func _on_track_delete_confirm_dialog_confirmed():
 	pending_track_delete_index = -1
 
 
-func _on_track_delete_confirm_dialog_canceled():
+func _on_track_delete_confirm_dialog_canceled() -> void:
 	pending_track_delete_index = -1
 
 
@@ -451,7 +456,7 @@ func _on_timeline_control_sequence_changed() -> void:
 	_mark_sequence_dirty()
 
 
-func _on_unsaved_changes_confirm_dialog_confirmed():
+func _on_unsaved_changes_confirm_dialog_confirmed() -> void:
 	if current_sequence_path.is_empty():
 		_refresh_save_dialog_suggested_file()
 		save_sequence_dialog.popup_centered_ratio()
@@ -470,9 +475,9 @@ func _on_unsaved_changes_confirm_dialog_confirmed():
 
 
 func _on_unsaved_changes_confirm_dialog_custom_action(action: StringName) -> void:
-	if action != "dont_save":
+	if action != "DSAVE":
 		return
-
+	unsaved_changes_confirm_dialog.hide()
 	match pending_unsaved_action:
 		"new":
 			_request_new_sequence()
@@ -480,3 +485,27 @@ func _on_unsaved_changes_confirm_dialog_custom_action(action: StringName) -> voi
 			_request_open_sequence()
 
 	pending_unsaved_action = ""
+
+
+func _on_button_save_as_pressed() -> void:
+	_refresh_save_dialog_suggested_file()
+	save_sequence_dialog.popup_centered_ratio()
+
+func _on_title_edit_text_submitted(new_text) -> void:
+	sequence_title_edit.release_focus()
+
+
+func _on_title_edit_focus_exited() -> void:
+	var new_title = sequence_title_edit.text.strip_edges()
+
+	if new_title.is_empty():
+		new_title = "Untitled Sequence"
+
+	if new_title == sequence_title:
+		_update_title_text()
+		return
+
+	sequence_title = new_title
+	_mark_sequence_dirty()
+	_refresh_save_dialog_suggested_file()
+	_update_title_text()

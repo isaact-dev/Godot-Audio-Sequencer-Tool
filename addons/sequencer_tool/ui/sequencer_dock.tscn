@@ -13,7 +13,7 @@ script = ExtResource("1_o187q")
 
 [node name="title" type="Label" parent="." unique_id=494619691]
 layout_mode = 2
-text = "Audio Sequencer * - Untitled Sequence"
+text = "Audio Sequencer - Untitled Sequence"
 
 [node name="ToolBar" type="HBoxContainer" parent="." unique_id=518287640]
 layout_mode = 2
@@ -35,6 +35,12 @@ layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 0
 text = "Save"
+
+[node name="ButtonSaveAs" type="Button" parent="ToolBar" unique_id=327713530]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+text = "Save As"
 
 [node name="ButtonPlay" type="Button" parent="ToolBar" unique_id=1281842796]
 layout_mode = 2
@@ -146,6 +152,10 @@ size_flags_horizontal = 3
 layout_mode = 2
 text = "Settings"
 
+[node name="TitleEdit" type="LineEdit" parent="HSplitContainer/SettingsHost/TimelineSettings" unique_id=171303181]
+layout_mode = 2
+placeholder_text = "Title"
+
 [node name="BPM" type="VBoxContainer" parent="HSplitContainer/SettingsHost/TimelineSettings" unique_id=1581228407]
 layout_mode = 2
 size_flags_horizontal = 3
@@ -250,8 +260,7 @@ offset_bottom = 40.0
 [node name="VBoxContainer" type="VBoxContainer" parent="NewSequenceDialog/MarginContainer" unique_id=316560289]
 layout_mode = 2
 
-[node name="SequenceTitle" type="TextEdit" parent="NewSequenceDialog/MarginContainer/VBoxContainer" unique_id=1301491908]
-custom_minimum_size = Vector2(0, 36)
+[node name="SequenceTitle" type="LineEdit" parent="NewSequenceDialog/MarginContainer/VBoxContainer" unique_id=382803634]
 layout_mode = 2
 text = "New Sequence"
 placeholder_text = "Title"
@@ -310,6 +319,7 @@ dialog_text = "You have unsaved changes. Save them and continue?"
 [connection signal="pressed" from="ToolBar/ButtonNew" to="." method="_on_button_new_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonOpen" to="." method="_on_button_open_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonSave" to="." method="_on_button_save_pressed"]
+[connection signal="pressed" from="ToolBar/ButtonSaveAs" to="." method="_on_button_save_as_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonPlay" to="." method="_on_button_play_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonPause" to="." method="_on_button_pause_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonAddClip" to="." method="_on_button_add_clip_pressed"]
@@ -320,6 +330,8 @@ dialog_text = "You have unsaved changes. Save them and continue?"
 [connection signal="value_changed" from="HSplitContainer/SettingsHost/ClipSettings/ClipTrackSpin" to="." method="_on_clip_track_spin_value_changed"]
 [connection signal="value_changed" from="HSplitContainer/SettingsHost/ClipSettings/ClipStartSpin" to="." method="_on_clip_start_spin_value_changed"]
 [connection signal="value_changed" from="HSplitContainer/SettingsHost/ClipSettings/ClipLengthSpin" to="." method="_on_clip_length_spin_value_changed"]
+[connection signal="focus_exited" from="HSplitContainer/SettingsHost/TimelineSettings/TitleEdit" to="." method="_on_title_edit_focus_exited"]
+[connection signal="text_submitted" from="HSplitContainer/SettingsHost/TimelineSettings/TitleEdit" to="." method="_on_title_edit_text_submitted"]
 [connection signal="value_changed" from="HSplitContainer/SettingsHost/TimelineSettings/BPM/BPMSlider" to="." method="_on_bpm_slider_value_changed"]
 [connection signal="value_changed" from="HSplitContainer/SettingsHost/TimelineSettings/Bars/BarsSlider" to="." method="_on_bars_slider_value_changed"]
 [connection signal="pressed" from="HSplitContainer/SettingsHost/TimelineSettings/Tracks/TrackHeader/TrackAddButton" to="." method="_on_track_add_button_pressed"]

@@ -1,33 +1,47 @@
 {
-	"bars": 24,
-	"beats_per_bar": 6,
+	"bars": 8,
+	"beats_per_bar": 3,
+	"bpm": 120.0,
 	"clips": [
 		{
-			"length": 4.0,
-			"name": "red",
-			"start": 0.0,
+			"length": 12.5,
+			"name": "Kick Loop",
+			"start": 16.0,
 			"track": 0
 		},
 		{
-			"length": 14.0,
-			"name": "red2",
-			"start": 7.0,
+			"length": 15.2,
+			"name": "Kick Fill",
+			"start": 29.0,
 			"track": 0
 		},
 		{
-			"length": 4.0,
-			"name": "gre",
-			"start": 21.0,
-			"track": 2
+			"length": 6.2,
+			"name": "Snare",
+			"start": 6.0,
+			"track": 0
 		},
 		{
-			"length": 4.0,
-			"name": "ye",
-			"start": 12.0,
+			"length": 8.2,
+			"name": "Snare Alt",
+			"start": 24.0,
 			"track": 1
+		},
+		{
+			"length": 16.2,
+			"name": "Bass Phrase",
+			"start": 5.0,
+			"track": 3
+		},
+		{
+			"length": 20.5,
+			"name": "Melody",
+			"start": 32.9,
+			"track": 3
 		}
 	],
-	"subdivisions_per_beat": 4,
+	"subdivisions_per_beat": 3,
+	"title": "Y",
 	"track_count": 7,
 	"track_names": [
 		"Track 1",
