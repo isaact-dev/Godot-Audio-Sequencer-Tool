@@ -91,6 +91,7 @@ var active_resize_handle_color := Color(1.0, 0.9, 0.35, 0.95)
 
 var drag_original_clip_index: int = -1
 var drag_original_clip_data: Dictionary
+var drag_original_selected_clips: Dictionary
 
 var resize_original_clip_index: int = -1
 var resize_original_clip_data: Dictionary = {}
@@ -454,6 +455,8 @@ func _reset_selection_and_interaction_state() -> void:
 	hovered_clip_index = -1
 	hovered_resize_clip_index = -1
 
+	drag_original_selected_clips.clear()
+
 	is_dragging_clip = false
 	dragged_clip_index = -1
 	drag_grab_offset = 0.0
@@ -467,14 +470,17 @@ func _reset_selection_and_interaction_state() -> void:
 	resize_start_mouse_position = Vector2.ZERO
 	resize_original_clip_index = -1
 	resize_original_clip_data = {}
+	_update_cursor_shape()
 
 func _clear_selection() -> void:
 	selected_clip_indices.clear()
 	selected_clip_index = -1
+	_update_cursor_shape()
 
 func _set_single_selection(clip_index: int) -> void:
 	selected_clip_indices = [clip_index]
 	selected_clip_index = clip_index
+	_update_cursor_shape()
 
 func _toggle_selection(clip_index: int) -> void:
 	if selected_clip_indices.has(clip_index):
@@ -486,6 +492,7 @@ func _toggle_selection(clip_index: int) -> void:
 		selected_clip_index = -1
 	else:
 		selected_clip_index = selected_clip_indices.back()
+	_update_cursor_shape()
 
 func get_sequence_data() -> Dictionary:
 	var serialized_clips: Array[Dictionary] = []
@@ -629,6 +636,10 @@ func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mouse_button_event := event as InputEventMouseButton
 		if not mouse_button_event.pressed:
+			if is_scrubbing_playhead:
+				_end_playhead_scrub()
+				accept_event()
+				return
 			if is_dragging_clip:
 				_end_clip_drag()
 				accept_event()
@@ -658,23 +669,35 @@ func _gui_input(event: InputEvent) -> void:
 
 				if clicked_clip_index == -1:
 					_clear_selection()
+					_update_hovered_resize_handle(mouse_button_event.position)
+					_update_hovered_clip(mouse_button_event.position)
+					_update_cursor_shape()
 					_emit_status_text()
 					_emit_selected_clip_changed()
 					queue_redraw()
+					accept_event()
 					return
 
 				if mouse_button_event.shift_pressed:
 					_toggle_selection(clicked_clip_index)
-				else:
+					_update_hovered_resize_handle(mouse_button_event.position)
+					_update_hovered_clip(mouse_button_event.position)
+					_update_cursor_shape()
+					_emit_status_text()
+					_emit_selected_clip_changed()
+					queue_redraw()
+					accept_event()
+					return
+
+				if not selected_clip_indices.has(clicked_clip_index):
 					_set_single_selection(clicked_clip_index)
 
 				_emit_status_text()
 				_emit_selected_clip_changed()
+				_begin_clip_drag(clicked_clip_index, mouse_button_event.position)
+				accept_event()
+				return
 
-				if clicked_clip_index != -1:
-					_begin_clip_drag(clicked_clip_index, mouse_button_event.position)
-				else:
-					queue_redraw()
 			else:
 				if is_scrubbing_playhead:
 					_end_playhead_scrub()
@@ -754,6 +777,8 @@ func _update_cursor_shape() -> void:
 		mouse_default_cursor_shape = Control.CURSOR_HSIZE
 	elif is_dragging_clip:
 		mouse_default_cursor_shape = Control.CURSOR_MOVE
+	elif hovered_clip_index != -1 and selected_clip_indices.has(hovered_clip_index):
+		mouse_default_cursor_shape = Control.CURSOR_MOVE
 	elif hovered_clip_index != -1:
 		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	else:
@@ -761,6 +786,9 @@ func _update_cursor_shape() -> void:
 
 func _begin_clip_drag(clip_index: int, mouse_position: Vector2) -> void:
 	if _is_editing_blocked_by_playback():
+		return
+
+	if not selected_clip_indices.has(clip_index):
 		return
 
 	if clip_index < 0 or clip_index >= fake_clips.size():
@@ -774,6 +802,10 @@ func _begin_clip_drag(clip_index: int, mouse_position: Vector2) -> void:
 	drag_original_clip_index = clip_index
 	drag_original_clip_data = clip.duplicate(true)
 
+	drag_original_selected_clips.clear()
+	for i in selected_clip_indices:
+		if i >= 0 and i < fake_clips.size():
+			drag_original_selected_clips[i] = fake_clips[i].duplicate(true)
 
 	var clip_start: float = clip["start"]
 	var mouse_timeline_position := _x_to_timeline(mouse_position.x)
@@ -820,6 +852,62 @@ func _update_clip_drag(mouse_position: Vector2) -> void:
 	if mouse_position.distance_to(drag_start_mouse_position) < 4.0:
 		return
 
+	if selected_clip_indices.size() > 1:
+		var primary_index := selected_clip_index
+		if not drag_original_selected_clips.has(primary_index):
+			return
+
+		var primary_original = drag_original_selected_clips[primary_index]
+		var primary_start: float = primary_original["start"]
+
+		var mouse_timeline_position := _x_to_timeline(mouse_position.x)
+		var desired_primary_start := mouse_timeline_position - drag_grab_offset
+		desired_primary_start = _snap_timeline_position(desired_primary_start)
+
+		var delta := desired_primary_start - primary_start
+		if is_equal_approx(delta, 0.0):
+			return
+		for clip_index in selected_clip_indices:
+			if not drag_original_selected_clips.has(clip_index):
+				return
+
+			var original = drag_original_selected_clips[clip_index]
+			var track := int(original["track"])
+			var start := float(original["start"])
+			var length := float(original["length"])
+
+			var desired_start := start + delta
+
+			var limits := _get_clip_start_limits(
+				track,
+				clip_index,
+				length,
+				desired_start,
+				selected_clip_indices
+			)
+
+			if not bool(limits["has_room"]):
+				return
+
+			var resolved := clamp(
+				desired_start,
+				float(limits["min_start"]),
+				float(limits["max_start"])
+			)
+
+			if not is_equal_approx(resolved, desired_start):
+				return
+		for clip_index in selected_clip_indices:
+			var original = drag_original_selected_clips[clip_index]
+			var clip = original.duplicate(true)
+			clip["start"] = float(original["start"]) + delta
+			fake_clips[clip_index] = clip
+
+		_emit_status_text()
+		_emit_selected_clip_changed()
+		queue_redraw()
+		return
+
 	var clip := fake_clips[dragged_clip_index]
 
 	if not clip.has("start") or not clip.has("length") or not clip.has("track"):
@@ -858,13 +946,32 @@ func _update_clip_drag(mouse_position: Vector2) -> void:
 func _end_clip_drag() -> void:
 	if not is_dragging_clip:
 		return
+	var handled_multiselect_drag := false
+	if drag_original_selected_clips.size() > 1:
+		var before := {}
+		var after := {}
+
+		for clip_index in drag_original_selected_clips.keys():
+			before[clip_index] = drag_original_selected_clips[clip_index].duplicate(true)
+			after[clip_index] = fake_clips[clip_index].duplicate(true)
+
+		if editor_undo_redo != null:
+			editor_undo_redo.create_action("Move Clips")
+			for clip_index in before.keys():
+				editor_undo_redo.add_do_method(self, "_set_clip_data", clip_index, after[clip_index])
+				editor_undo_redo.add_undo_method(self, "_set_clip_data", clip_index, before[clip_index])
+			editor_undo_redo.commit_action()
+		
+		handled_multiselect_drag = true
+		drag_original_selected_clips.clear()
+
 
 	var should_register_undo := false
 	var final_clip_index := drag_original_clip_index
 	var before_clip: Dictionary = {}
 	var after_clip: Dictionary = {}
 
-	if drag_original_clip_index >= 0 and drag_original_clip_index < fake_clips.size() and not drag_original_clip_data.is_empty():
+	if not handled_multiselect_drag and drag_original_clip_index >= 0 and drag_original_clip_index < fake_clips.size() and not drag_original_clip_data.is_empty():
 		var current_clip := fake_clips[drag_original_clip_index]
 
 		var original_start := float(drag_original_clip_data.get("start", 0.0))
