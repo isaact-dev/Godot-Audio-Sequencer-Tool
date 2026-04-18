@@ -234,11 +234,14 @@ func _get_clip_index_at_position(position: Vector2) -> int:
 func _get_clip_end(clip: Dictionary) -> float:
 	return float(clip["start"]) + float(clip["length"])
 
-func _get_track_clips_sorted(track_index: int, exclude_clip_index: int = -1) -> Array[Dictionary]:
+func _get_track_clips_sorted(track_index: int, exclude_clip_index: int = -1, exclude_clip_indices: Array[int] = []) -> Array:
 	var clips_on_track: Array[Dictionary] = []
 
 	for i in range(fake_clips.size()):
 		if i == exclude_clip_index:
+			continue
+
+		if exclude_clip_indices.has(i):
 			continue
 
 		var clip := fake_clips[i]
@@ -260,12 +263,12 @@ func _get_track_clips_sorted(track_index: int, exclude_clip_index: int = -1) -> 
 
 	return clips_on_track
 
-func _get_clip_start_limits(track_index: int, exclude_clip_index: int, clip_length: float, desired_start: float) -> Dictionary:
+func _get_clip_start_limits(track_index: int, exclude_clip_index: int, clip_length: float, desired_start: float, exclude_clip_indices: Array[int] = []) -> Dictionary:
 	var total_subdivisions := float(_get_total_subdivisions())
 	var min_start := 0.0
 	var next_start := total_subdivisions
 
-	for other in _get_track_clips_sorted(track_index, exclude_clip_index):
+	for other in _get_track_clips_sorted(track_index, exclude_clip_index, exclude_clip_indices):
 		var other_start := float(other["start"])
 		var other_end := float(other["end"])
 
@@ -625,6 +628,15 @@ func _gui_input(event: InputEvent) -> void:
 
 	if event is InputEventMouseButton:
 		var mouse_button_event := event as InputEventMouseButton
+		if not mouse_button_event.pressed:
+			if is_dragging_clip:
+				_end_clip_drag()
+				accept_event()
+				return
+			if is_resizing_clip:
+				_end_clip_resize()
+				accept_event()
+				return
 		if mouse_button_event.button_index == MOUSE_BUTTON_LEFT:
 			if mouse_button_event.pressed:
 				grab_focus()
@@ -1014,6 +1026,74 @@ func _nudge_selected_clip(amount: float, use_snap: bool) -> void:
 	if _is_editing_blocked_by_playback():
 		return
 
+	var clip_indices: Array[int] = []
+
+	for clip_index in selected_clip_indices:
+		if clip_index >= 0 and clip_index < fake_clips.size():
+			clip_indices.append(clip_index)
+
+	if clip_indices.is_empty():
+		return
+
+	if selected_clip_index < 0 or not clip_indices.has(selected_clip_index):
+		selected_clip_index = clip_indices.back()
+
+	if clip_indices.size() > 1:
+		var primary_clip := fake_clips[selected_clip_index]
+		if not primary_clip.has("start"):
+			return
+
+		var resolved_delta := amount
+		if use_snap:
+			var primary_start: float = primary_clip["start"]
+			var resolved_primary_start := round(primary_start + amount)
+			resolved_delta = resolved_primary_start - primary_start
+
+		if is_equal_approx(resolved_delta, 0.0):
+			_show_blocked_action_feedback("No room to nudge selection.")
+			return
+
+		for clip_index in clip_indices:
+			var clip := fake_clips[clip_index]
+			if not clip.has("start") or not clip.has("length") or not clip.has("track"):
+				return
+
+			var track_index: int = clip["track"]
+			var start: float = clip["start"]
+			var length: float = clip["length"]
+			var desired_start := start + resolved_delta
+			var limits := _get_clip_start_limits(
+				track_index,
+				clip_index,
+				length,
+				desired_start,
+				clip_indices
+			)
+
+			if not bool(limits["has_room"]):
+				_show_blocked_action_feedback("No room to nudge selection.")
+				return
+
+			var resolved_start := clamp(
+				desired_start,
+				float(limits["min_start"]),
+				float(limits["max_start"])
+			)
+			if not is_equal_approx(resolved_start, desired_start):
+				_show_blocked_action_feedback("No room to nudge selection.")
+				return
+
+		for clip_index in clip_indices:
+			var clip := fake_clips[clip_index]
+			clip["start"] = float(clip["start"]) + resolved_delta
+			fake_clips[clip_index] = clip
+
+		_emit_sequence_changed()
+		_emit_status_text()
+		_emit_selected_clip_changed()
+		queue_redraw()
+		return
+
 	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
 		return
 
@@ -1054,6 +1134,7 @@ func _nudge_selected_clip(amount: float, use_snap: bool) -> void:
 	clip["start"] = new_start
 	fake_clips[selected_clip_index] = clip
 
+	_emit_sequence_changed()
 	_emit_status_text()
 	_emit_selected_clip_changed()
 	queue_redraw()

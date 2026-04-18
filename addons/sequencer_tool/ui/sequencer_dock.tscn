@@ -154,6 +154,7 @@ text = "Settings"
 
 [node name="TitleEdit" type="LineEdit" parent="HSplitContainer/SettingsHost/TimelineSettings" unique_id=171303181]
 layout_mode = 2
+text = "Untitled Sequence"
 placeholder_text = "Title"
 
 [node name="BPM" type="VBoxContainer" parent="HSplitContainer/SettingsHost/TimelineSettings" unique_id=1581228407]
