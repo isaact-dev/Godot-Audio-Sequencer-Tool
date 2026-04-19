@@ -498,6 +498,22 @@ func _toggle_selection(clip_index: int) -> void:
 		selected_clip_index = selected_clip_indices.back()
 	_update_cursor_shape()
 
+func _set_selected_clip_indices(indices: Array[int]) -> void:
+	selected_clip_indices.clear()
+
+	for clip_index in indices:
+		if clip_index >= 0 and clip_index < fake_clips.size():
+			selected_clip_indices.append(clip_index)
+
+	if selected_clip_indices.is_empty():
+		selected_clip_index = -1
+	else:
+		selected_clip_index = selected_clip_indices.back()
+
+	_emit_status_text()
+	_emit_selected_clip_changed()
+	queue_redraw()
+
 func get_sequence_data() -> Dictionary:
 	var serialized_clips: Array[Dictionary] = []
 
@@ -1061,6 +1077,102 @@ func add_clip() -> void:
 func duplicate_selected_clip() -> void:
 	if _is_editing_blocked_by_playback():
 		return
+	var source_indices: Array[int] = []
+	for clip_index in selected_clip_indices:
+		if clip_index >= 0 and clip_index < fake_clips.size():
+			source_indices.append(clip_index)
+
+	source_indices.sort()
+
+	if source_indices.size() > 1:
+		var group_min_start := INF
+		var group_max_end := -INF
+		var duplicated_clips: Array[Dictionary] = []
+
+		for clip_index in source_indices:
+			var source_clip := fake_clips[clip_index]
+
+			if not source_clip.has("track") or not source_clip.has("start") or not source_clip.has("length"):
+				_show_blocked_action_feedback("Selected clip is invalid for duplication.")
+				return
+
+			var source_start := float(source_clip["start"])
+			var source_length := float(source_clip["length"])
+			var source_end := source_start + source_length
+
+			group_min_start = min(group_min_start, source_start)
+			group_max_end = max(group_max_end, source_end)
+
+		var duplicated_group_start = max(_snap_timeline_position(group_max_end), group_max_end)
+		var group_delta = duplicated_group_start - group_min_start
+		var group_fit_found := false
+
+		for _attempt in range(128):
+			var next_group_delta = group_delta
+			var group_can_fit := true
+
+			for clip_index in source_indices:
+				var source_clip := fake_clips[clip_index]
+				var duplicate_track := int(source_clip["track"])
+				var duplicate_length := float(source_clip["length"])
+				var preferred_start = float(source_clip["start"]) + group_delta
+				var available_start := _find_available_start(duplicate_track, duplicate_length, preferred_start)
+
+				if available_start < 0.0:
+					_show_blocked_action_feedback("No room to duplicate this selection.")
+					return
+
+				if not is_equal_approx(available_start, preferred_start):
+					group_can_fit = false
+
+				next_group_delta = max(next_group_delta, available_start - float(source_clip["start"]))
+
+			if group_can_fit:
+				group_fit_found = true
+				break
+
+			if is_equal_approx(next_group_delta, group_delta):
+				break
+
+			group_delta = next_group_delta
+
+		if not group_fit_found:
+			_show_blocked_action_feedback("No room to duplicate this selection.")
+			return
+
+		for clip_index in source_indices:
+			var source_clip := fake_clips[clip_index]
+			var duplicated_clip := source_clip.duplicate(true)
+			duplicated_clip["start"] = float(source_clip["start"]) + group_delta
+			duplicated_clip["name"] = "%s Copy" % str(source_clip.get("name", "Clip"))
+			duplicated_clips.append(duplicated_clip)
+		var insert_start_index := fake_clips.size()
+		var new_selection: Array[int] = []
+
+		for i in range(duplicated_clips.size()):
+			new_selection.append(insert_start_index + i)
+
+		if editor_undo_redo == null:
+			for i in range(duplicated_clips.size()):
+				_insert_clip_at(insert_start_index + i, duplicated_clips[i])
+
+			_set_selected_clip_indices(new_selection)
+			_ensure_clip_visible(new_selection.back())
+			return
+
+		editor_undo_redo.create_action("Duplicate Clips")
+
+		for i in range(duplicated_clips.size()):
+			editor_undo_redo.add_do_method(self, "_insert_clip_at", insert_start_index + i, duplicated_clips[i])
+
+		for i in range(duplicated_clips.size() - 1, -1, -1):
+			editor_undo_redo.add_undo_method(self, "_remove_clip_at", insert_start_index + i)
+
+		editor_undo_redo.add_do_method(self, "_set_selected_clip_indices", new_selection)
+		editor_undo_redo.commit_action()
+
+		_ensure_clip_visible(new_selection.back())
+		return
 
 	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
 		_show_blocked_action_feedback("No clip selected to duplicate.")
@@ -1075,13 +1187,12 @@ func duplicate_selected_clip() -> void:
 	var duplicated_clip := source_clip.duplicate(true)
 	var source_start := float(source_clip["start"])
 	var source_length := float(source_clip["length"])
-	var total_subdivisions := float(_get_total_subdivisions())
-	var desired_start := _snap_timeline_position(source_start + source_length)
+	var desired_start := max(_snap_timeline_position(source_start + source_length), source_start + source_length)
 	var duplicate_track := int(source_clip["track"])
 	var duplicated_start := desired_start
 
 	if not _can_place_clip_at(duplicate_track, -1, source_length, desired_start):
-		duplicated_start = _find_first_valid_start(duplicate_track, source_length)
+		duplicated_start = _find_available_start(duplicate_track, source_length, desired_start)
 
 		if duplicated_start < 0.0:
 			_show_blocked_action_feedback("No room to duplicate this clip on its track.")
