@@ -343,8 +343,12 @@ func _can_place_clip_at(track_index: int, exclude_clip_index: int, clip_length: 
 func _build_status_text() -> String:
 	var snap_text := "On" if _is_snap_active() else "Off"
 	var base_text := ""
-
-	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
+	if selected_clip_indices.size() > 1:
+		base_text = "Selected: %d clips | Snap: %s" % [
+			selected_clip_indices.size(),
+			snap_text
+		]
+	elif selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
 		base_text = "Selected: None | Start: - | Length: - | Snap: %s" % snap_text
 	else:
 		var clip := fake_clips[selected_clip_index]

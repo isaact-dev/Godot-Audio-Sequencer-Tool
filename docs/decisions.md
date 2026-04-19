@@ -217,3 +217,10 @@ Clip creation should be based on an explicit insertion anchor instead of at the 
 1. Selected clip end
 2. Playhead and mouse position
 3. Start of timeline
+
+## 2026‑04‑19 — Keep ctrl + A as add clip instead of select all
+
+### Decision
+
+The standard in godot for adding a new node is ctrl+A, making this the standard for new clip as well makes sense.
+Currently, there are no plans to add select all.
