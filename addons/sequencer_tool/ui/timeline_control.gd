@@ -104,6 +104,8 @@ signal selected_clip_changed(clip_index: int, clip_data: Dictionary)
 signal tracks_changed(track_names: Array)
 signal sequence_changed()
 
+var clip_clipboard: Array[Dictionary] = []
+
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	focus_mode = Control.FOCUS_ALL
@@ -611,6 +613,14 @@ func _gui_input(event: InputEvent) -> void:
 		if key_event.pressed and not key_event.echo:
 			if key_event.keycode == KEY_DELETE or key_event.keycode == KEY_BACKSPACE:
 				delete_selected_clip()
+				accept_event()
+				return
+			if key_event.ctrl_pressed and key_event.keycode == KEY_C:
+				copy_selected_clips()
+				accept_event()
+				return
+			if key_event.ctrl_pressed and key_event.keycode == KEY_V:
+				paste_clipboard()
 				accept_event()
 				return
 			if key_event.ctrl_pressed and key_event.keycode == KEY_D:
@@ -1214,6 +1224,131 @@ func duplicate_selected_clip() -> void:
 	editor_undo_redo.commit_action()
 	_ensure_clip_visible(selected_clip_index)
 
+func copy_selected_clips() -> void:
+	var source_indices: Array[int] = []
+
+	for clip_index in selected_clip_indices:
+		if clip_index >= 0 and clip_index < fake_clips.size():
+			source_indices.append(clip_index)
+
+	source_indices.sort()
+	clip_clipboard.clear()
+
+	for clip_index in source_indices:
+		clip_clipboard.append(fake_clips[clip_index].duplicate(true))
+
+	if clip_clipboard.is_empty():
+		_show_blocked_action_feedback("No clips selected to copy.")
+		return
+
+	_set_action_feedback("Copied %d clip(s)." % clip_clipboard.size())
+
+func paste_clipboard() -> void:
+	if _is_editing_blocked_by_playback():
+		return
+
+	if clip_clipboard.is_empty():
+		_show_blocked_action_feedback("Clipboard is empty.")
+		return
+
+	var clipboard_min_start := INF
+	var clipboard_min_track := track_count
+	var clipboard_max_track := -1
+	var pasted_clips: Array[Dictionary] = []
+
+	for clip in clip_clipboard:
+		if not clip.has("track") or not clip.has("start") or not clip.has("length"):
+			_show_blocked_action_feedback("Clipboard data is invalid.")
+			return
+
+		clipboard_min_start = min(clipboard_min_start, float(clip["start"]))
+		var clip_track := int(clip["track"])
+		clipboard_min_track = min(clipboard_min_track, clip_track)
+		clipboard_max_track = max(clipboard_max_track, clip_track)
+	var clipboard_track_count := (clipboard_max_track - clipboard_min_track) + 1
+	if clipboard_track_count > track_count:
+		_show_blocked_action_feedback("Not enough tracks to paste this selection.")
+		return
+
+	var target_top_track := clipboard_min_track
+	var mouse_position := get_local_mouse_position()
+
+	if _is_mouse_over_timeline_lanes(mouse_position):
+		target_top_track = _y_to_track_index(mouse_position.y)
+
+	var max_top_track := track_count - clipboard_track_count
+	target_top_track = clamp(target_top_track, 0, max_top_track)
+
+	var track_offset := target_top_track - clipboard_min_track
+
+	var target_group_start := max(_snap_timeline_position(playhead_position), playhead_position)
+	var group_delta = target_group_start - clipboard_min_start
+	var group_fit_found := false
+
+	for _attempt in range(128):
+		var next_group_delta = group_delta
+		var group_can_fit := true
+
+		for clip in clip_clipboard:
+			var duplicate_track := int(clip["track"]) + track_offset
+			var duplicate_length := float(clip["length"])
+			var preferred_start = float(clip["start"]) + group_delta
+			var available_start := _find_available_start(duplicate_track, duplicate_length, preferred_start)
+
+			if available_start < 0.0:
+				_show_blocked_action_feedback("No room to paste this selection.")
+				return
+
+			if not is_equal_approx(available_start, preferred_start):
+				group_can_fit = false
+
+			next_group_delta = max(next_group_delta, available_start - float(clip["start"]))
+
+		if group_can_fit:
+			group_fit_found = true
+			break
+
+		if is_equal_approx(next_group_delta, group_delta):
+			break
+
+		group_delta = next_group_delta
+
+	if not group_fit_found:
+		_show_blocked_action_feedback("No room to paste this selection.")
+		return
+
+	for clip in clip_clipboard:
+		var pasted_clip := clip.duplicate(true)
+		pasted_clip["start"] = float(clip["start"]) + group_delta
+		pasted_clip["track"] = int(clip["track"]) + track_offset
+		pasted_clips.append(pasted_clip)
+
+	var insert_start_index := fake_clips.size()
+	var new_selection: Array[int] = []
+
+	for i in range(pasted_clips.size()):
+		new_selection.append(insert_start_index + i)
+
+	if editor_undo_redo == null:
+		for i in range(pasted_clips.size()):
+			_insert_clip_at(insert_start_index + i, pasted_clips[i])
+
+		_set_selected_clip_indices(new_selection)
+		_ensure_clip_visible(new_selection.back())
+		return
+
+	editor_undo_redo.create_action("Paste Clips")
+
+	for i in range(pasted_clips.size()):
+		editor_undo_redo.add_do_method(self, "_insert_clip_at", insert_start_index + i, pasted_clips[i])
+
+	for i in range(pasted_clips.size() - 1, -1, -1):
+		editor_undo_redo.add_undo_method(self, "_remove_clip_at", insert_start_index + i)
+
+	editor_undo_redo.add_do_method(self, "_set_selected_clip_indices", new_selection)
+	editor_undo_redo.commit_action()
+
+	_ensure_clip_visible(new_selection.back())
 
 func delete_selected_clip() -> void:
 	if _is_editing_blocked_by_playback():

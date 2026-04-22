@@ -224,3 +224,10 @@ Clip creation should be based on an explicit insertion anchor instead of at the 
 
 The standard in godot for adding a new node is ctrl+A, making this the standard for new clip as well makes sense.
 Currently, there are no plans to add select all.
+
+## 2026‑04‑22 — Paste should align the clipboard group’s top-most clip to the hovered track
+
+### Decision
+
+Paste should align the clipboard group’s top-most clip to the hovered track.
+It should clamp upward when needed so the full pasted group still fits vertically.
