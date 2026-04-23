@@ -619,6 +619,10 @@ func _gui_input(event: InputEvent) -> void:
 				copy_selected_clips()
 				accept_event()
 				return
+			if key_event.ctrl_pressed and key_event.keycode == KEY_X:
+				cut_selected_clips()
+				accept_event()
+				return
 			if key_event.ctrl_pressed and key_event.keycode == KEY_V:
 				paste_clipboard()
 				accept_event()
@@ -1242,6 +1246,14 @@ func copy_selected_clips() -> void:
 		return
 
 	_set_action_feedback("Copied %d clip(s)." % clip_clipboard.size())
+
+func cut_selected_clips() -> void:
+	copy_selected_clips()
+
+	if clip_clipboard.is_empty():
+		return
+
+	delete_selected_clip()
 
 func paste_clipboard() -> void:
 	if _is_editing_blocked_by_playback():
