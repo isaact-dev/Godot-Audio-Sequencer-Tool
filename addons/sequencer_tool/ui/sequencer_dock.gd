@@ -408,11 +408,18 @@ func _on_timeline_control_selected_clip_changed(clip_index: int, clip_data: Dict
 	timeline_settings.visible = false
 	clip_settings.visible = true
 
-
-func _on_clip_name_edit_text_changed(new_text: String) -> void:
+func _on_clip_name_edit_text_submitted(new_text: String) -> void:
 	if _updating_clip_settings_ui:
 		return
+
 	timeline.set_selected_clip_name(new_text)
+	name_edit.release_focus()
+
+func _on_clip_name_edit_focus_exited() -> void:
+	if _updating_clip_settings_ui:
+		return
+
+	timeline.set_selected_clip_name(name_edit.text)
 
 func _on_clip_track_spin_value_changed(value: float) -> void:
 	if _updating_clip_settings_ui:

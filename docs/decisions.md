@@ -231,3 +231,10 @@ Currently, there are no plans to add select all.
 
 Paste should align the clipboard group’s top-most clip to the hovered track.
 It should clamp upward when needed so the full pasted group still fits vertically.
+
+## 2026‑04‑22 — Commit clip name edits on submit/focus-exit instead of per-keystroke
+
+### Decision
+
+Commit clip name edits should be on submit/focus-exit instead of per-keystroke.
+This way, dock-based renaming stays undoable without flooding the undo stack with every keystroke.

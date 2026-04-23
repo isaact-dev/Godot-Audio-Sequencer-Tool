@@ -1513,14 +1513,9 @@ func set_selected_clip_name(value: String) -> void:
 	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
 		return
 
-	var clip := fake_clips[selected_clip_index]
+	var clip := fake_clips[selected_clip_index].duplicate(true)
 	clip["name"] = value
-	fake_clips[selected_clip_index] = clip
-
-	_emit_sequence_changed()
-	_emit_status_text()
-	_emit_selected_clip_changed()
-	queue_redraw()
+	_commit_selected_clip_change("Rename Clip", clip)
 
 func set_selected_clip_track(value: int) -> void:
 	if _is_editing_blocked_by_playback():
@@ -1529,7 +1524,7 @@ func set_selected_clip_track(value: int) -> void:
 	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
 		return
 
-	var clip := fake_clips[selected_clip_index]
+	var clip := fake_clips[selected_clip_index].duplicate(true)
 	var target_track := clamp(value, 0, track_count - 1)
 	var start: float = clip["start"]
 	var length: float = clip["length"]
@@ -1540,12 +1535,7 @@ func set_selected_clip_track(value: int) -> void:
 
 	clip["track"] = target_track
 	clip["start"] = clamp(start, float(limits["min_start"]), float(limits["max_start"]))
-	fake_clips[selected_clip_index] = clip
-
-	_emit_sequence_changed()
-	_emit_status_text()
-	_emit_selected_clip_changed()
-	queue_redraw()
+	_commit_selected_clip_change("Change Clip Track", clip)
 
 func set_selected_clip_start(value: float) -> void:
 	if _is_editing_blocked_by_playback():
@@ -1554,7 +1544,7 @@ func set_selected_clip_start(value: float) -> void:
 	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
 		return
 
-	var clip := fake_clips[selected_clip_index]
+	var clip := fake_clips[selected_clip_index].duplicate(true)
 
 	if not clip.has("length"):
 		return
@@ -1567,12 +1557,7 @@ func set_selected_clip_start(value: float) -> void:
 		return
 
 	clip["start"] = clamp(value, float(limits["min_start"]), float(limits["max_start"]))
-	fake_clips[selected_clip_index] = clip
-
-	_emit_sequence_changed()
-	_emit_status_text()
-	_emit_selected_clip_changed()
-	queue_redraw()
+	_commit_selected_clip_change("Change Clip Track", clip)
 
 func set_selected_clip_length(value: float) -> void:
 	if _is_editing_blocked_by_playback():
@@ -1581,7 +1566,7 @@ func set_selected_clip_length(value: float) -> void:
 	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
 		return
 
-	var clip := fake_clips[selected_clip_index]
+	var clip := fake_clips[selected_clip_index].duplicate(true)
 
 	if not clip.has("start"):
 		return
@@ -1590,12 +1575,7 @@ func set_selected_clip_length(value: float) -> void:
 	var track_index: int = clip["track"]
 	var max_length := _get_max_clip_length_without_overlap(track_index, selected_clip_index, start)
 	clip["length"] = clamp(value, min_clip_length, max_length)
-	fake_clips[selected_clip_index] = clip
-
-	_emit_sequence_changed()
-	_emit_status_text()
-	_emit_selected_clip_changed()
-	queue_redraw()
+	_commit_selected_clip_change("Change Clip Track", clip)
 
 func _set_clip_data(clip_index: int, clip_data: Dictionary) -> void:
 	if clip_index < 0 or clip_index >= fake_clips.size():
@@ -1607,6 +1587,31 @@ func _set_clip_data(clip_index: int, clip_data: Dictionary) -> void:
 	_emit_status_text()
 	_emit_selected_clip_changed()
 	queue_redraw()
+
+func _commit_selected_clip_change(action_name: String, updated_clip: Dictionary) -> void:
+	print("action_name")
+	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
+		print("action_name1")
+		return
+
+	var clip_index := selected_clip_index
+	var before_clip := fake_clips[clip_index].duplicate(true)
+	var after_clip := updated_clip.duplicate(true)
+
+	if before_clip == after_clip:
+		print("action_name2")
+		return
+
+	if editor_undo_redo == null:
+		_set_clip_data(clip_index, after_clip)
+		print("action_name3")
+		return
+
+	editor_undo_redo.create_action(action_name)
+	editor_undo_redo.add_do_method(self, "_set_clip_data", clip_index, after_clip)
+	editor_undo_redo.add_undo_method(self, "_set_clip_data", clip_index, before_clip)
+	editor_undo_redo.commit_action()
+	print(action_name)
 
 func _insert_clip_at(clip_index: int, clip_data: Dictionary) -> void:
 	clip_index = clamp(clip_index, 0, fake_clips.size())
