@@ -238,3 +238,58 @@ It should clamp upward when needed so the full pasted group still fits verticall
 
 Commit clip name edits should be on submit/focus-exit instead of per-keystroke.
 This way, dock-based renaming stays undoable without flooding the undo stack with every keystroke.
+
+## 2026-04-24 — Clips should be audio-source references
+
+### Decision
+ 
+Clips should represent references to audio sources rather than merged or destructively edited audio data.
+A clip should be able to store:
+- source audio reference
+- playback speed
+- volume
+- start offset
+
+## 2026-04-24 — Clip creation should be possible in multiple ways
+
+### Decision
+ 
+Clip creation should be possible in multiple ways:
+- create an empty clip, then assign an audio file in clip settings
+- create a clip by choosing an audio file first
+- drag-and-drop from Godot’s FileSystem dock
+
+## 2026-04-24 — Sequence playback preview should trigger when the playhead crosses a clip start
+
+### Decision
+ 
+The sequencer should preview a clip’s audio when the playhead crosses that clip’s start position.
+Playback should not trigger a clip just because playback begins in the middle of an already-started clip.
+
+### Reasoning
+ 
+This gives predictable sequencer-style preview behavior.
+A clip should be triggered by crossing its start boundary. It should not catch up to clips whose start was already passed before playback began.
+
+### Consequences
+ 
+Playback logic should be based on start-crossing detection rather than only the current playhead position.
+
+## 2026-04-24 — Track controls should be thoroughly implemented
+
+### Decision
+ 
+Tracks should support actual playback-related controls, not just naming and ordering.
+
+Important settings are:
+- mute
+- volume
+- timing interval offset
+- pitch interval offset
+
+### Reasoning
+ 
+Tracks are not just visual lanes in an audio sequencer.
+Basic mix and playback control at the track level is a core part of the editing workflow.
+Timing and pitch interval offset on individual clips can make audio make sound less robotic
+This is an important plus of working with a plugin like this as it can't easily be done by importing full audio files.
