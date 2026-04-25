@@ -94,7 +94,7 @@ vertical_scroll_mode = 2
 
 [node name="ClipSettings" type="VBoxContainer" parent="HSplitContainer/SettingsHost" unique_id=931133608]
 visible = false
-custom_minimum_size = Vector2(180, 0)
+custom_minimum_size = Vector2(217, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 
@@ -104,6 +104,10 @@ layout_mode = 2
 [node name="ClipPropertiesLabel" type="Label" parent="HSplitContainer/SettingsHost/ClipSettings/HBoxContainer" unique_id=384330737]
 layout_mode = 2
 text = "Clip Properties"
+
+[node name="Control" type="Control" parent="HSplitContainer/SettingsHost/ClipSettings/HBoxContainer" unique_id=1808469789]
+layout_mode = 2
+size_flags_horizontal = 3
 
 [node name="ClipCloseButton" type="Button" parent="HSplitContainer/SettingsHost/ClipSettings/HBoxContainer" unique_id=941030650]
 layout_mode = 2
@@ -116,6 +120,24 @@ text = "Name"
 [node name="ClipNameEdit" type="LineEdit" parent="HSplitContainer/SettingsHost/ClipSettings" unique_id=1046997087]
 layout_mode = 2
 placeholder_text = "Clip Name"
+
+[node name="ClipSourceLabel" type="Label" parent="HSplitContainer/SettingsHost/ClipSettings" unique_id=1126976290]
+layout_mode = 2
+text = "Audio Source"
+
+[node name="ClipSourceRow" type="HBoxContainer" parent="HSplitContainer/SettingsHost/ClipSettings" unique_id=1259484166]
+layout_mode = 2
+
+[node name="ClipSourceEdit" type="LineEdit" parent="HSplitContainer/SettingsHost/ClipSettings/ClipSourceRow" unique_id=10128313]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+placeholder_text = "res://path/to/audio.file"
+
+[node name="ClipSourcePickButton" type="Button" parent="HSplitContainer/SettingsHost/ClipSettings/ClipSourceRow" unique_id=1386595093]
+layout_mode = 2
+size_flags_horizontal = 8
+text = "..."
 
 [node name="ClipTrackLabel" type="Label" parent="HSplitContainer/SettingsHost/ClipSettings" unique_id=1277571663]
 layout_mode = 2
@@ -317,6 +339,10 @@ title = "Unsaved Changes"
 ok_button_text = "Save"
 dialog_text = "You have unsaved changes. Save them and continue?"
 
+[node name="PickAudioDialog" type="FileDialog" parent="." unique_id=336885865]
+title = "Open a File"
+file_mode = 0
+
 [connection signal="pressed" from="ToolBar/ButtonNew" to="." method="_on_button_new_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonOpen" to="." method="_on_button_open_pressed"]
 [connection signal="pressed" from="ToolBar/ButtonSave" to="." method="_on_button_save_pressed"]
@@ -329,6 +355,9 @@ dialog_text = "You have unsaved changes. Save them and continue?"
 [connection signal="pressed" from="HSplitContainer/SettingsHost/ClipSettings/HBoxContainer/ClipCloseButton" to="." method="_on_clip_close_button_pressed"]
 [connection signal="focus_exited" from="HSplitContainer/SettingsHost/ClipSettings/ClipNameEdit" to="." method="_on_clip_name_edit_focus_exited"]
 [connection signal="text_submitted" from="HSplitContainer/SettingsHost/ClipSettings/ClipNameEdit" to="." method="_on_clip_name_edit_text_submitted"]
+[connection signal="focus_exited" from="HSplitContainer/SettingsHost/ClipSettings/ClipSourceRow/ClipSourceEdit" to="." method="_on_clip_source_edit_focus_exited"]
+[connection signal="text_submitted" from="HSplitContainer/SettingsHost/ClipSettings/ClipSourceRow/ClipSourceEdit" to="." method="_on_clip_source_edit_text_submitted"]
+[connection signal="pressed" from="HSplitContainer/SettingsHost/ClipSettings/ClipSourceRow/ClipSourcePickButton" to="." method="_on_clip_source_pick_button_pressed"]
 [connection signal="value_changed" from="HSplitContainer/SettingsHost/ClipSettings/ClipTrackSpin" to="." method="_on_clip_track_spin_value_changed"]
 [connection signal="value_changed" from="HSplitContainer/SettingsHost/ClipSettings/ClipStartSpin" to="." method="_on_clip_start_spin_value_changed"]
 [connection signal="value_changed" from="HSplitContainer/SettingsHost/ClipSettings/ClipLengthSpin" to="." method="_on_clip_length_spin_value_changed"]
@@ -349,3 +378,4 @@ dialog_text = "You have unsaved changes. Save them and continue?"
 [connection signal="confirmed" from="TrackDeleteConfirmDialog" to="." method="_on_track_delete_confirm_dialog_confirmed"]
 [connection signal="confirmed" from="UnsavedChangesConfirmDialog" to="." method="_on_unsaved_changes_confirm_dialog_confirmed"]
 [connection signal="custom_action" from="UnsavedChangesConfirmDialog" to="." method="_on_unsaved_changes_confirm_dialog_custom_action"]
+[connection signal="file_selected" from="PickAudioDialog" to="." method="_on_pick_audio_dialog_file_selected"]

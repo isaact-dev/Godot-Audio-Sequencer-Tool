@@ -524,7 +524,8 @@ func get_sequence_data() -> Dictionary:
 			"track": int(clip.get("track", 0)),
 			"start": float(clip.get("start", 0.0)),
 			"length": float(clip.get("length", min_clip_length)),
-			"name": str(clip.get("name", "Clip"))
+			"name": str(clip.get("name", "Clip")),
+			"audio_path": str(clip.get("audio_path", ""))
 		}
 
 		serialized_clips.append(serialized_clip)
@@ -573,7 +574,8 @@ func load_sequence_data(data: Dictionary) -> void:
 				"track": clip_track,
 				"start": clip_start,
 				"length": clamp(clip_length, min_clip_length, max_length),
-				"name": str(loaded_clip.get("name", "Clip"))
+				"name": str(loaded_clip.get("name", "Clip")),
+				"audio_path": str(loaded_clip.get("audio_path", ""))
 			}
 			fake_clips.append(clip)
 
@@ -1077,10 +1079,12 @@ func add_clip() -> void:
 		"start": new_start,
 		"length": default_length,
 		"name": "New Clip",
+		"audio_path": "",
 	}
 
 	fake_clips.append(new_clip)
 	selected_clip_index = fake_clips.size() - 1
+	selected_clip_indices = [selected_clip_index]
 	_ensure_clip_visible(selected_clip_index)
 
 	_emit_sequence_changed()
@@ -1227,6 +1231,7 @@ func duplicate_selected_clip() -> void:
 	editor_undo_redo.add_undo_method(self, "_remove_clip_at", insert_index)
 	editor_undo_redo.commit_action()
 	_ensure_clip_visible(selected_clip_index)
+
 
 func copy_selected_clips() -> void:
 	var source_indices: Array[int] = []
@@ -1583,10 +1588,19 @@ func _set_clip_data(clip_index: int, clip_data: Dictionary) -> void:
 
 	fake_clips[clip_index] = clip_data.duplicate(true)
 	selected_clip_index = clip_index
+	selected_clip_indices = [selected_clip_index]
 	_emit_sequence_changed()
 	_emit_status_text()
 	_emit_selected_clip_changed()
 	queue_redraw()
+
+func set_selected_clip_audio_path(value: String) -> void:
+	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
+		return
+
+	var clip := fake_clips[selected_clip_index].duplicate(true)
+	clip["audio_path"] = value.strip_edges()
+	_commit_selected_clip_change("Set Clip Audio Source", clip)
 
 func _commit_selected_clip_change(action_name: String, updated_clip: Dictionary) -> void:
 	print("action_name")
@@ -1617,6 +1631,7 @@ func _insert_clip_at(clip_index: int, clip_data: Dictionary) -> void:
 	clip_index = clamp(clip_index, 0, fake_clips.size())
 	fake_clips.insert(clip_index, clip_data.duplicate(true))
 	selected_clip_index = clip_index
+	selected_clip_indices = [selected_clip_index]
 	_emit_sequence_changed()
 	_emit_status_text()
 	_emit_selected_clip_changed()
@@ -2027,42 +2042,42 @@ func _create_demo_clips() -> void:
 			"start": 16.0,
 			"length": 12.5,
 			"name": "Kick Loop",
-			"color": Color(0.25, 0.50, 0.80)
+			"audio_path": ""
 		},
 		{
 			"track": 0,
 			"start": 29.0,
 			"length": 15.2,
 			"name": "Kick Fill",
-			"color": Color(0.25, 0.50, 0.80)
+			"audio_path": ""
 		},
 		{
 			"track": 1,
 			"start": 4.3,
 			"length": 6.2,
 			"name": "Snare",
-			"color": Color(0.80, 0.45, 0.30)
+			"audio_path": ""
 		},
 		{
 			"track": 1,
 			"start": 24.0,
 			"length": 8.2,
 			"name": "Snare Alt",
-			"color": Color(0.78, 0.40, 0.28)
+			"audio_path": ""
 		},
 		{
 			"track": 2,
 			"start": 8.1,
 			"length": 16.2,
 			"name": "Bass Phrase",
-			"color": Color(0.35, 0.75, 0.45)
+			"audio_path": ""
 		},
 		{
 			"track": 3,
 			"start": 32.9,
 			"length": 20.5,
 			"name": "Melody",
-			"color": Color(0.70, 0.40, 0.85)
+			"audio_path": ""
 		}
 	]
 

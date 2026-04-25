@@ -27,7 +27,9 @@ extends VBoxContainer
 @onready var unsaved_changes_confirm_dialog = $UnsavedChangesConfirmDialog
 @onready var sequence_title_textedit = $NewSequenceDialog/MarginContainer/VBoxContainer/SequenceTitle
 @onready var sequence_title_edit = $HSplitContainer/SettingsHost/TimelineSettings/TitleEdit
-
+@onready var source_edit = $HSplitContainer/SettingsHost/ClipSettings/ClipSourceRow/ClipSourceEdit
+@onready var source_pick_button = $HSplitContainer/SettingsHost/ClipSettings/ClipSourceRow/ClipSourcePickButton
+@onready var pick_audio_dialog = $PickAudioDialog
 
 
 var editor_undo_redo: EditorUndoRedoManager = null
@@ -102,6 +104,8 @@ func _ready() -> void:
 	save_sequence_dialog.access = FileDialog.ACCESS_RESOURCES
 	save_sequence_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 	save_sequence_dialog.filters = PackedStringArray(["*.json ; Sequencer Tool JSON"])
+
+	pick_audio_dialog.filters = PackedStringArray(["*.wav, *.ogg, *.mp3 ; Audio Files"])
 	_refresh_save_dialog_suggested_file()
 
 	_update_title_text()
@@ -121,12 +125,14 @@ func _clear_clip_settings_ui() -> void:
 	length_spin.value = length_spin.min_value
 	delete_clip_button.disabled = true
 	_updating_clip_settings_ui = false
+	source_edit.text = ""
 
 func _sync_clip_settings_ui(clip_index: int, clip_data: Dictionary) -> void:
 	_updating_clip_settings_ui = true
 
 	if clip_index < 0 or clip_data.is_empty():
 		name_edit.text = ""
+		source_edit.text = ""
 		track_spin.value = track_spin.min_value
 		start_spin.value = start_spin.min_value
 		length_spin.value = length_spin.min_value
@@ -137,10 +143,12 @@ func _sync_clip_settings_ui(clip_index: int, clip_data: Dictionary) -> void:
 		var clip_start := float(clip_data.get("start", 0.0))
 		var max_length := max(timeline.min_clip_length, float(timeline.bars * timeline.beats_per_bar * timeline.subdivisions_per_beat) - clip_start)
 		var clip_name := str(clip_data.get("name", ""))
+		var clip_audio_path := str(clip_data.get("audio_path", ""))
 
 		if not name_edit.has_focus() and name_edit.text != clip_name:
 			name_edit.text = clip_name
-
+		if not source_edit.has_focus() and source_edit.text != clip_audio_path:
+			source_edit.text = clip_audio_path
 
 		var clip_track := int(clip_data.get("track", 0))
 
@@ -517,3 +525,26 @@ func _on_title_edit_focus_exited() -> void:
 	_mark_sequence_dirty()
 	_refresh_save_dialog_suggested_file()
 	_update_title_text()
+
+
+func _on_clip_source_edit_text_submitted(new_text: String) -> void:
+	if _updating_clip_settings_ui:
+		return
+
+	timeline.set_selected_clip_audio_path(new_text)
+	source_edit.release_focus()
+
+func _on_clip_source_edit_focus_exited() -> void:
+	if _updating_clip_settings_ui:
+		return
+
+	timeline.set_selected_clip_audio_path(source_edit.text)
+
+func _on_clip_source_pick_button_pressed() -> void:
+	if timeline.selected_clip_index < 0:
+		return
+
+	pick_audio_dialog.popup_centered_ratio()
+
+func _on_pick_audio_dialog_file_selected(path: String) -> void:
+	timeline.set_selected_clip_audio_path(path)
