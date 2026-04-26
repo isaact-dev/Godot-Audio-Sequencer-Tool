@@ -145,7 +145,7 @@ func _sync_clip_settings_ui(clip_index: int, clip_data: Dictionary) -> void:
 		var clip_length := float(clip_data.get("length", timeline.min_clip_length))
 		var max_start := max(0.0, float(timeline.bars * timeline.beats_per_bar * timeline.subdivisions_per_beat) - clip_length)
 		var clip_start := float(clip_data.get("start", 0.0))
-		var max_length := max(timeline.min_clip_length, float(timeline.bars * timeline.beats_per_bar * timeline.subdivisions_per_beat) - clip_start)
+		var max_length = timeline.get_clip_max_length(clip_index)
 		var clip_name := str(clip_data.get("name", ""))
 		var clip_audio_path := str(clip_data.get("audio_path", ""))
 

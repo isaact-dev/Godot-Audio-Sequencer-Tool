@@ -308,6 +308,42 @@ func _get_max_clip_length_without_overlap(track_index: int, exclude_clip_index: 
 
 	return max(min_clip_length, next_start - clip_start)
 
+func _get_clip_max_length_from_audio(clip: Dictionary) -> float:
+	var audio_path := str(clip.get("audio_path", "")).strip_edges()
+	if audio_path.is_empty():
+		return INF
+
+	var audio_stream := load(audio_path) as AudioStream
+	if audio_stream == null:
+		return INF
+
+	var audio_length_seconds := audio_stream.get_length()
+	if audio_length_seconds <= 0.0:
+		return INF
+
+	var playback_speed := max(0.001, float(clip.get("playback_speed", 1.0)))
+	return max(min_clip_length, (audio_length_seconds * _get_subdivisions_per_second()) / playback_speed)
+
+func _get_effective_max_clip_length(clip_index: int, clip: Dictionary) -> float:
+	if not clip.has("track") or not clip.has("start"):
+		return min_clip_length
+
+	var overlap_max := _get_max_clip_length_without_overlap(
+		int(clip["track"]),
+		clip_index,
+		float(clip["start"])
+	)
+	var audio_max := _get_clip_max_length_from_audio(clip)
+
+	return max(min_clip_length, min(overlap_max, audio_max))
+
+
+func get_clip_max_length(clip_index: int) -> float:
+	if clip_index < 0 or clip_index >= fake_clips.size():
+		return min_clip_length
+
+	return _get_effective_max_clip_length(clip_index, fake_clips[clip_index])
+
 func _find_available_start(track_index: int, clip_length: float, preferred_start: float, exclude_clip_index: int = -1) -> float:
 	var total_subdivisions := float(_get_total_subdivisions())
 	var max_start := max(0.0, total_subdivisions - clip_length)
@@ -1063,13 +1099,19 @@ func add_clip(audio_path: String = "") -> void:
 		return
 
 	var default_length := max(4.0, min_clip_length)
+	var clip_name := "New Clip"
 
 	if not audio_path.strip_edges().is_empty():
+		clip_name = audio_path.get_file().get_basename()
+
 		var audio_stream := load(audio_path) as AudioStream
 		if audio_stream != null:
 			var audio_length_seconds := audio_stream.get_length()
 			if audio_length_seconds > 0.0:
 				default_length = max(audio_length_seconds * _get_subdivisions_per_second(), min_clip_length)
+
+	if clip_name.strip_edges().is_empty():
+		clip_name = "New Clip"
 
 	var total_subdivisions := float(_get_total_subdivisions())
 
@@ -1112,7 +1154,7 @@ func add_clip(audio_path: String = "") -> void:
 		"track": new_track,
 		"start": new_start,
 		"length": default_length,
-		"name": "New Clip",
+		"name": clip_name,
 		"audio_path": audio_path
 	}
 
@@ -1612,7 +1654,7 @@ func set_selected_clip_length(value: float) -> void:
 
 	var start: float = clip["start"]
 	var track_index: int = clip["track"]
-	var max_length := _get_max_clip_length_without_overlap(track_index, selected_clip_index, start)
+	var max_length := _get_effective_max_clip_length(selected_clip_index, clip)
 	clip["length"] = clamp(value, min_clip_length, max_length)
 	_commit_selected_clip_change("Change Clip Length", clip)
 
@@ -1634,6 +1676,12 @@ func set_selected_clip_audio_path(value: String) -> void:
 
 	var clip := fake_clips[selected_clip_index].duplicate(true)
 	clip["audio_path"] = value.strip_edges()
+	clip["length"] = clamp(
+		float(clip.get("length", min_clip_length)),
+		min_clip_length,
+		_get_effective_max_clip_length(selected_clip_index, clip)
+	)
+
 	_commit_selected_clip_change("Set Clip Audio Source", clip)
 
 func _commit_selected_clip_change(action_name: String, updated_clip: Dictionary) -> void:
@@ -1877,7 +1925,7 @@ func _update_clip_resize(mouse_position: Vector2) -> void:
 	new_end = _snap_timeline_position(new_end)
 
 	var min_end := start + min_clip_length
-	var max_length := _get_max_clip_length_without_overlap(track_index, resized_clip_index, start)
+	var max_length := _get_effective_max_clip_length(resized_clip_index, clip)
 	var max_end := start + max_length
 
 	new_end = clamp(new_end, min_end, max_end)
