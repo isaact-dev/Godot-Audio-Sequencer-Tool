@@ -696,7 +696,7 @@ func _gui_input(event: InputEvent) -> void:
 				var clicked_resize_clip_index := _get_resize_handle_clip_index_at_position(mouse_button_event.position)
 
 				if clicked_resize_clip_index != -1:
-					selected_clip_index = clicked_resize_clip_index
+					_set_single_selection(clicked_resize_clip_index)
 					_emit_selected_clip_changed()
 					_begin_clip_resize(clicked_resize_clip_index, mouse_button_event.position)
 					return
@@ -1562,7 +1562,7 @@ func set_selected_clip_start(value: float) -> void:
 		return
 
 	clip["start"] = clamp(value, float(limits["min_start"]), float(limits["max_start"]))
-	_commit_selected_clip_change("Change Clip Track", clip)
+	_commit_selected_clip_change("Change Clip Start", clip)
 
 func set_selected_clip_length(value: float) -> void:
 	if _is_editing_blocked_by_playback():
@@ -1580,7 +1580,7 @@ func set_selected_clip_length(value: float) -> void:
 	var track_index: int = clip["track"]
 	var max_length := _get_max_clip_length_without_overlap(track_index, selected_clip_index, start)
 	clip["length"] = clamp(value, min_clip_length, max_length)
-	_commit_selected_clip_change("Change Clip Track", clip)
+	_commit_selected_clip_change("Change Clip Length", clip)
 
 func _set_clip_data(clip_index: int, clip_data: Dictionary) -> void:
 	if clip_index < 0 or clip_index >= fake_clips.size():
@@ -1603,9 +1603,7 @@ func set_selected_clip_audio_path(value: String) -> void:
 	_commit_selected_clip_change("Set Clip Audio Source", clip)
 
 func _commit_selected_clip_change(action_name: String, updated_clip: Dictionary) -> void:
-	print("action_name")
 	if selected_clip_index < 0 or selected_clip_index >= fake_clips.size():
-		print("action_name1")
 		return
 
 	var clip_index := selected_clip_index
@@ -1613,19 +1611,16 @@ func _commit_selected_clip_change(action_name: String, updated_clip: Dictionary)
 	var after_clip := updated_clip.duplicate(true)
 
 	if before_clip == after_clip:
-		print("action_name2")
 		return
 
 	if editor_undo_redo == null:
 		_set_clip_data(clip_index, after_clip)
-		print("action_name3")
 		return
 
 	editor_undo_redo.create_action(action_name)
 	editor_undo_redo.add_do_method(self, "_set_clip_data", clip_index, after_clip)
 	editor_undo_redo.add_undo_method(self, "_set_clip_data", clip_index, before_clip)
 	editor_undo_redo.commit_action()
-	print(action_name)
 
 func _insert_clip_at(clip_index: int, clip_data: Dictionary) -> void:
 	clip_index = clamp(clip_index, 0, fake_clips.size())
@@ -1818,7 +1813,7 @@ func _begin_clip_resize(clip_index: int, mouse_position: Vector2) -> void:
 	dragged_clip_index = -1
 	drag_grab_offset = 0.0
 
-	selected_clip_index = clip_index
+	_set_single_selection(clip_index)
 	hovered_clip_index = -1
 	hovered_resize_clip_index = clip_index
 	_update_cursor_shape()
@@ -1915,6 +1910,7 @@ func clear_selected_clip() -> void:
 		return
 
 	selected_clip_index = -1
+	selected_clip_indices.clear()
 	_emit_status_text()
 	_emit_selected_clip_changed()
 	queue_redraw()
