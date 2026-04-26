@@ -99,12 +99,15 @@ var resize_original_clip_data: Dictionary = {}
 var editor_undo_redo: EditorUndoRedoManager = null
 var action_feedback_text: String = ""
 
+var pending_clip_insertion_context: Dictionary = {}
+
+var clip_clipboard: Array[Dictionary] = []
+
 signal status_text_changed(text: String)
 signal selected_clip_changed(clip_index: int, clip_data: Dictionary)
 signal tracks_changed(track_names: Array)
 signal sequence_changed()
-
-var clip_clipboard: Array[Dictionary] = []
+signal add_clip_requested()
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -634,7 +637,7 @@ func _gui_input(event: InputEvent) -> void:
 					accept_event()
 					return
 			if key_event.ctrl_pressed and key_event.keycode == KEY_A:
-					add_clip()
+					add_clip_requested.emit()
 					accept_event()
 					return
 			if key_event.keycode == KEY_SPACE:
@@ -855,6 +858,17 @@ func _begin_clip_drag(clip_index: int, mouse_position: Vector2) -> void:
 	_update_cursor_shape()
 	queue_redraw()
 
+func prepare_next_clip_insertion_context() -> void:
+	var mouse_position := get_local_mouse_position()
+	var mouse_over_timeline := _is_mouse_over_timeline_lanes(mouse_position)
+
+	pending_clip_insertion_context = {
+		"selected_clip_index": selected_clip_index,
+		"playhead_position": playhead_position,
+		"mouse_over_timeline": mouse_over_timeline,
+		"mouse_track": _y_to_track_index(mouse_position.y) if mouse_over_timeline else 0
+	}
+
 func _get_default_clip_insertion_target(clip_length: float) -> Dictionary:
 	var mouse_position := get_local_mouse_position()
 
@@ -1044,11 +1058,19 @@ func _end_clip_drag() -> void:
 func _is_snap_active() -> bool:
 	return snap_enabled != temporary_snap_override_active
 
-func add_clip() -> void:
+func add_clip(audio_path: String = "") -> void:
 	if _is_editing_blocked_by_playback():
 		return
 
 	var default_length := max(4.0, min_clip_length)
+
+	if not audio_path.strip_edges().is_empty():
+		var audio_stream := load(audio_path) as AudioStream
+		if audio_stream != null:
+			var audio_length_seconds := audio_stream.get_length()
+			if audio_length_seconds > 0.0:
+				default_length = max(audio_length_seconds * _get_subdivisions_per_second(), min_clip_length)
+
 	var total_subdivisions := float(_get_total_subdivisions())
 
 	if total_subdivisions <= 0.0:
@@ -1056,13 +1078,25 @@ func add_clip() -> void:
 
 	default_length = min(default_length, total_subdivisions)
 
-	var insertion_target := _get_default_clip_insertion_target(default_length)
-	var new_track := int(insertion_target["track"])
-	var desired_start := float(insertion_target["start"])
+	var insertion_context := pending_clip_insertion_context
+	pending_clip_insertion_context = {}
+
+	var new_track := 0
+	var desired_start := _snap_timeline_position(float(insertion_context.get("playhead_position", playhead_position)))
+
+	var context_selected_clip_index := int(insertion_context.get("selected_clip_index", selected_clip_index))
+	if context_selected_clip_index >= 0 and context_selected_clip_index < fake_clips.size():
+		var selected_clip := fake_clips[context_selected_clip_index]
+		if selected_clip.has("track") and selected_clip.has("start") and selected_clip.has("length"):
+			new_track = int(selected_clip["track"])
+			desired_start = _snap_timeline_position(float(selected_clip["start"]) + float(selected_clip["length"]))
+	elif bool(insertion_context.get("mouse_over_timeline", false)):
+		new_track = clamp(int(insertion_context.get("mouse_track", 0)), 0, track_count - 1)
+
 	var new_start := desired_start
 
 	if not _can_place_clip_at(new_track, -1, default_length, desired_start):
-		new_start = _find_first_valid_start(new_track, default_length)
+		new_start = _find_available_start(new_track, default_length, desired_start)
 
 		if new_start < 0.0:
 			_show_blocked_action_feedback("No room to add a clip on this track.")
@@ -1079,7 +1113,7 @@ func add_clip() -> void:
 		"start": new_start,
 		"length": default_length,
 		"name": "New Clip",
-		"audio_path": "",
+		"audio_path": audio_path
 	}
 
 	fake_clips.append(new_clip)

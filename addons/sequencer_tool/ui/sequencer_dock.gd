@@ -109,8 +109,7 @@ func _ready() -> void:
 	save_sequence_dialog.filters = PackedStringArray(["*.json ; Sequencer Tool JSON"])
 
 	pick_audio_dialog.filters = PackedStringArray(["*.wav, *.ogg, *.mp3 ; Audio Files"])
-	pick_audio_no_audio_button = pick_audio_dialog.add_button("No Audio", false, "NO_AUDIO")
-	call_deferred("_fix_pick_audio_dialog_button_layout")
+	pick_audio_no_audio_button = pick_audio_dialog.add_button("No Audio", true, "NO_AUDIO")
 	_refresh_save_dialog_suggested_file()
 
 	_update_title_text()
@@ -192,26 +191,6 @@ func _resolve_loaded_sequence_title(data: Dictionary, path: String) -> String:
 	if not loaded_title.is_empty():
 		return loaded_title
 	return path.get_file().get_basename()
-
-func _fix_pick_audio_dialog_button_layout() -> void:
-	var cancel_button = pick_audio_dialog.get_cancel_button()
-
-	if cancel_button == null or pick_audio_no_audio_button == null:
-		return
-
-	var button_row = cancel_button.get_parent()
-	if button_row == null:
-		return
-
-	var old_spacer = button_row.get_node_or_null("AudioDialogSpacer")
-	if old_spacer != null:
-		old_spacer.queue_free()
-
-	pick_audio_no_audio_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-
-	var cancel_index = cancel_button.get_index()
-	button_row.move_child(pick_audio_no_audio_button, cancel_index)
-
 
 func _build_suggested_sequence_file_name() -> String:
 	var file_name := sequence_title.strip_edges()
@@ -318,6 +297,7 @@ func _on_save_sequence_dialog_file_selected(path: String) -> void:
 
 
 func _on_button_add_clip_pressed() -> void:
+	timeline.prepare_next_clip_insertion_context()
 	pending_audio_pick_mode = "add_clip"
 	pick_audio_dialog.popup_centered_ratio()
 
@@ -575,8 +555,7 @@ func _on_clip_source_pick_button_pressed() -> void:
 func _on_pick_audio_dialog_file_selected(path: String) -> void:
 	match pending_audio_pick_mode:
 		"add_clip":
-			timeline.add_clip()
-			timeline.set_selected_clip_audio_path(path)
+			timeline.add_clip(path)
 
 		"set_selected_clip_source":
 			timeline.set_selected_clip_audio_path(path)
@@ -601,3 +580,7 @@ func _on_pick_audio_dialog_custom_action(action: StringName) -> void:
 
 func _on_pick_audio_dialog_canceled() -> void:
 	pending_audio_pick_mode = ""
+
+
+func _on_timeline_control_add_clip_requested() -> void:
+	_on_button_add_clip_pressed()

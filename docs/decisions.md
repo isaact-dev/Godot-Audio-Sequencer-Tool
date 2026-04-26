@@ -293,3 +293,8 @@ Tracks are not just visual lanes in an audio sequencer.
 Basic mix and playback control at the track level is a core part of the editing workflow.
 Timing and pitch interval offset on individual clips can make audio make sound less robotic
 This is an important plus of working with a plugin like this as it can't easily be done by importing full audio files.
+
+## 2026-04-26 — Preserve insertion intent before the audio picker opens
+
+### Decision
+Preserve insertion intent before the audio picker opens, but only resolve the clip’s final placement after the chosen audio file reveals the real clip length to avoid overlap.
