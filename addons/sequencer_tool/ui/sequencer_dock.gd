@@ -30,6 +30,7 @@ extends VBoxContainer
 @onready var source_edit = $HSplitContainer/SettingsHost/ClipSettings/ClipSourceRow/ClipSourceEdit
 @onready var source_pick_button = $HSplitContainer/SettingsHost/ClipSettings/ClipSourceRow/ClipSourcePickButton
 @onready var pick_audio_dialog = $PickAudioDialog
+@onready var playback_speed_spin = $HSplitContainer/SettingsHost/ClipSettings/ClipPlaybackSpeedSpin
 
 
 var editor_undo_redo: EditorUndoRedoManager = null
@@ -127,9 +128,11 @@ func _clear_clip_settings_ui() -> void:
 	track_spin.value = track_spin.min_value
 	start_spin.value = start_spin.min_value
 	length_spin.value = length_spin.min_value
+	playback_speed_spin.value = 1.0
 	delete_clip_button.disabled = true
 	_updating_clip_settings_ui = false
 	source_edit.text = ""
+
 
 func _sync_clip_settings_ui(clip_index: int, clip_data: Dictionary) -> void:
 	_updating_clip_settings_ui = true
@@ -140,12 +143,14 @@ func _sync_clip_settings_ui(clip_index: int, clip_data: Dictionary) -> void:
 		track_spin.value = track_spin.min_value
 		start_spin.value = start_spin.min_value
 		length_spin.value = length_spin.min_value
+		playback_speed_spin.value = 1.0
 	else:
 		delete_clip_button.disabled = false
 		var clip_length := float(clip_data.get("length", timeline.min_clip_length))
 		var max_start := max(0.0, float(timeline.bars * timeline.beats_per_bar * timeline.subdivisions_per_beat) - clip_length)
 		var clip_start := float(clip_data.get("start", 0.0))
 		var max_length = timeline.get_clip_max_length(clip_index)
+		var clip_playback_speed := float(clip_data.get("playback_speed", 1.0))
 		var clip_name := str(clip_data.get("name", ""))
 		var clip_audio_path := str(clip_data.get("audio_path", ""))
 
@@ -167,7 +172,8 @@ func _sync_clip_settings_ui(clip_index: int, clip_data: Dictionary) -> void:
 		length_spin.max_value = max_length
 		if length_spin.value != clip_length:
 			length_spin.value = clip_length
-
+		if playback_speed_spin.value != clip_playback_speed:
+					playback_speed_spin.value = clip_playback_speed
 
 	_updating_clip_settings_ui = false
 
@@ -584,3 +590,9 @@ func _on_pick_audio_dialog_canceled() -> void:
 
 func _on_timeline_control_add_clip_requested() -> void:
 	_on_button_add_clip_pressed()
+
+
+func _on_clip_playback_speed_spin_value_changed(value: float) -> void:
+	if _updating_clip_settings_ui:
+		return
+	timeline.set_selected_clip_playback_speed(value)
